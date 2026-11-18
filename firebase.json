@@ -1,0 +1,19 @@
+{
+  "hosting": {
+    "site": "rustenburg-today",
+    "public": "firebase-static",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "trailingSlash": false,
+    "redirects": [
+      {
+        "source": "/",
+        "destination": "/en",
+        "type": 302
+      }
+    ]
+  }
+}
