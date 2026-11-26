@@ -9,14 +9,16 @@ export function AdminShell({ locale, user, children }: { locale: Locale; user: S
       <a className="skip-link" href="#content">Skip to the desk</a>
       <header className="desk-bar">
         <div>
-          <p className="desk-kicker">Monitoring desk</p>
+          <p className="desk-kicker">Content owners</p>
           <p className="desk-title">Rustenburg Today</p>
         </div>
         <div className="desk-tools">
-          <Link href={localePath(locale, "/admin")}>Overview</Link>
-          <Link href={localePath(locale, "/department")}>Departments</Link>
+          {user && (user.roles.includes("administrator") || user.roles.includes("editor") || user.roles.includes("moderator")) ? (
+            <Link href={localePath(locale, "/admin")}>Admin</Link>
+          ) : null}
+          <Link href={localePath(locale, "/department")}>Content desks</Link>
           {user ? <span>{user.displayName}</span> : null}
-          <Link href={localePath(locale)}>Open the public site</Link>
+          <Link href={localePath(locale)}>Preview public site</Link>
           {user ? (
             <form action={signOutAction}>
               <input type="hidden" name="locale" value={locale} />

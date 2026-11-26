@@ -20,9 +20,9 @@ On a news or department story page you can react the way people do on Facebook: 
 
 Community posts can be an update, discussion, poll, safety report or lost-and-found note. Safety reports stay pending for review. Do not post an identity number, private address or an allegation you cannot support.
 
-## Department desk
+## Content desks (department staff)
 
-If an administrator assigns you to a department, open **www.rustenburgtoday.co.za/department** (or **Department desk** from your account). Sign in, then choose your department. One account can hold several departments. Publish only for the pages you are assigned to. Those updates appear on the matching public section. News desk stories sit beside SAnews headline links; they do not replace the official feed.
+Department accounts belong to the people who keep this website informative. Open **https://www.rustenburgtoday.co.za/department**, sign in, then choose your desk. Publish headlines, pictures and story updates so the home page and section pages stay current. One account can hold several departments. News desk stories sit beside SAnews headline links; they do not replace the official feed.
 
 The desk shows a story report with views and Facebook-style reaction totals for that department. Download CSV exports the same numbers for Excel or Sheets.
 

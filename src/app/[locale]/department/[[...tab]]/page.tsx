@@ -28,7 +28,11 @@ export default async function DepartmentPage({
   if (!user) {
     return (
       <div className="mx-auto max-w-lg">
-        <PageIntro locale={locale} title="Department login" summary="Staff sign in here, then choose the department desk they are assigned to." />
+        <PageIntro
+          locale={locale}
+          title="Content desk login"
+          summary="For the people who keep Rustenburg Today informative — headlines, department updates and the main public pages."
+        />
         <Notice error={query.error} notice={query.notice} />
         <form action={signInAction} className="mt-4 space-y-3 rounded-2xl bg-white p-5 dark:bg-white/5">
           <HiddenLocale locale={locale} />
@@ -48,8 +52,8 @@ export default async function DepartmentPage({
   if (!mine.length) {
     return (
       <div>
-        <PageIntro locale={locale} title="Department desk" summary="No department is assigned to this account." />
-        <p className="rounded-2xl bg-white p-6 dark:bg-white/5">Ask an administrator to assign you under Admin → Departments.</p>
+        <PageIntro locale={locale} title="Content desk" summary="This account is not assigned to a department yet." />
+        <p className="rounded-2xl bg-white p-6 dark:bg-white/5">Ask an administrator to assign you under Admin → Departments so you can publish headlines and page updates.</p>
       </div>
     );
   }
@@ -58,8 +62,13 @@ export default async function DepartmentPage({
   if (!active) {
     return (
       <div>
-        <PageIntro locale={locale} title="Choose a department" summary={`${user.displayName} · select the desk you need to publish from.`} />
+        <PageIntro
+          locale={locale}
+          title="Your content desks"
+          summary={`${user.displayName} · choose a department and keep that public page current with headlines, stories and updates.`}
+        />
         <Notice error={query.error} notice={query.notice} />
+        <p className="mb-4 max-w-2xl text-sm">Department accounts own the live content for this website. Publish what residents should see on the home page and section pages.</p>
         <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {mine.map((slug) => {
             const section = sectionBySlug(slug);
@@ -68,7 +77,7 @@ export default async function DepartmentPage({
               <li key={slug}>
                 <Link className="block rounded-2xl bg-white px-4 py-5 transition hover:-translate-y-0.5 dark:bg-white/5" href={localePath(locale, `/department/${slug}`)}>
                   <strong className="font-serif text-2xl">{t(locale, section.titleKey)}</strong>
-                  <p className="mt-1 text-sm text-muted">Open the {slug} desk</p>
+                  <p className="mt-1 text-sm text-muted">Publish headlines and updates for /{slug}</p>
                 </Link>
               </li>
             );
@@ -88,9 +97,9 @@ export default async function DepartmentPage({
 
   return (
     <div>
-      <PageIntro locale={locale} title="Department desk" summary={`${user.displayName} · ${t(locale, meta.titleKey)}`} />
+      <PageIntro locale={locale} title={`${t(locale, meta.titleKey)} content desk`} summary={`${user.displayName} · keep /${active} informative for the public site.`} />
       <Notice error={query.error} notice={query.notice === "published" ? "Published on the public department page." : query.notice === "draft" ? "Saved as a draft." : query.notice === "staff-created" ? "Staff account created. One-time password is in data/." : query.notice} />
-      <p className="mb-4 text-sm"><Link className="font-semibold text-[#1d4e89]" href={localePath(locale, "/department")}>All departments</Link></p>
+      <p className="mb-4 text-sm"><Link className="font-semibold text-[#1d4e89]" href={localePath(locale, "/department")}>All content desks</Link></p>
       <nav className="mb-6 flex flex-wrap gap-2 text-sm" aria-label="Assigned departments">
         {mine.map((slug) => {
           const section = sectionBySlug(slug);

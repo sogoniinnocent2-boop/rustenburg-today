@@ -93,6 +93,22 @@ function Rewards({ locale, userId }: { locale: string; userId: string }) {
 }
 
 function Overview({ locale, userId, roles, verified }: { locale: string; userId: string; roles: string[]; verified: boolean }) {
+  const contentOwner = roles.includes("department_editor") || roles.includes("administrator") || roles.includes("editor");
+  if (contentOwner) {
+    return (
+      <div className="space-y-4">
+        <p>Content owner account · {verified ? "Email verified." : "Email not verified yet."}</p>
+        <p className="max-w-2xl text-sm">This login is for people who keep the public website informative — headlines, department stories and page updates. Open your content desk to publish.</p>
+        <div className="flex flex-wrap gap-2 text-sm">
+          <Link className={`${button}`} href={localePath(locale, "/department")}>Open content desk</Link>
+          {roles.some((role) => ["administrator", "editor", "moderator"].includes(role)) ? <Link className="rounded-full border px-3 py-1" href={localePath(locale, "/admin")}>Admin</Link> : null}
+          <Link className="rounded-full border px-3 py-1" href={localePath(locale)}>Preview public site</Link>
+          <Link className="rounded-full border px-3 py-1" href={localePath(locale, "/account/security")}>Security</Link>
+        </div>
+        <p className="text-sm text-muted">Roles: {roles.join(", ")}</p>
+      </div>
+    );
+  }
   return (
     <div className="space-y-4">
       <p>Rustenburg Today ID · {verified ? "Email verified." : "Email not verified yet."}</p>
@@ -101,8 +117,6 @@ function Overview({ locale, userId, roles, verified }: { locale: string; userId:
         <Link className="rounded-full border px-3 py-1" href={localePath(locale, "/tickets")}>Tickets</Link>
         <Link className="rounded-full border px-3 py-1" href={localePath(locale, "/property")}>Property</Link>
         <Link className="rounded-full border px-3 py-1" href={localePath(locale, "/safetrack")}>SafeTrack</Link>
-        {roles.includes("department_editor") || roles.includes("administrator") || roles.includes("editor") ? <Link className="rounded-full border px-3 py-1" href={localePath(locale, "/department")}>Department desk</Link> : null}
-        {roles.some((role) => ["administrator", "editor", "moderator"].includes(role)) ? <Link className="rounded-full border px-3 py-1" href={localePath(locale, "/admin")}>Admin</Link> : null}
       </div>
       <p>{t(locale, "points")}: {pointsBalance(userId)}</p>
       <p className="text-sm">{roles.join(", ")}</p>
