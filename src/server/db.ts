@@ -99,6 +99,26 @@ function applyMigrations(db: DatabaseSync): void {
   applyDepartmentStories(db);
   applyArticleVideo(db);
   applyArticleReactions(db);
+  applyMultiSource(db);
+}
+
+function applyMultiSource(db: DatabaseSync): void {
+  const applied = new Set((db.prepare("SELECT id FROM schema_migrations").all() as Array<{ id: string }>).map((row) => row.id));
+  if (applied.has("0016_multisource")) return;
+  addColumn(db, "news_sources", "country", "TEXT");
+  addColumn(db, "news_sources", "coverage", "TEXT");
+  addColumn(db, "news_sources", "content_type", "TEXT");
+  addColumn(db, "news_sources", "ingest_interval_minutes", "INTEGER NOT NULL DEFAULT 60");
+  addColumn(db, "news_sources", "last_success_at", "TEXT");
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS news_source_departments (
+      source_id TEXT NOT NULL REFERENCES news_sources(id),
+      section_slug TEXT NOT NULL,
+      PRIMARY KEY (source_id, section_slug)
+    );
+    CREATE INDEX IF NOT EXISTS idx_news_source_departments_section ON news_source_departments(section_slug);
+  `);
+  db.prepare("INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)").run("0016_multisource", new Date().toISOString());
 }
 
 function applyDepartmentDesks(db: DatabaseSync): void {

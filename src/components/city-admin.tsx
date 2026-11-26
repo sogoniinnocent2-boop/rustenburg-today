@@ -4,14 +4,16 @@ import { listPendingPosts } from "@/server/community";
 import { homepageBlocks, licencesDue, listSources, reviewQueue } from "@/server/citydesk";
 import { listAssets } from "@/server/media-library";
 import { listAssignments, manageableSections } from "@/server/departments";
+import { sourceDiversityReport } from "@/server/multisource";
 import { sectionBySlug } from "@/lib/sections";
 import { all } from "@/server/db";
 
-export const adminTabs = ["dashboard", "news", "ingest", "editorial", "topfive", "media", "reports", "complaints", "jobs", "ads", "radio", "homepage", "weather", "departments"];
+export const adminTabs = ["dashboard", "news", "ingest", "coverage", "editorial", "topfive", "media", "reports", "complaints", "jobs", "ads", "radio", "homepage", "weather", "departments"];
 
 export const adminDeskLinks = [
   ["news", "News sources"],
   ["ingest", "Ingestion"],
+  ["coverage", "Source coverage"],
   ["editorial", "Editorial desk"],
   ["topfive", "Top five"],
   ["media", "Photographs"],
@@ -33,6 +35,7 @@ export function CityAdmin({ locale, active }: { locale: string; active: string }
       </nav>
       {active === "news" ? <SourceForm locale={locale} /> : null}
       {active === "ingest" ? <IngestList locale={locale} /> : null}
+      {active === "coverage" ? <CoverageDesk /> : null}
       {active === "editorial" ? <EditorialQueue locale={locale} /> : null}
       {active === "topfive" ? <TopForm locale={locale} /> : null}
       {active === "media" ? <MediaDesk locale={locale} /> : null}
@@ -192,7 +195,23 @@ function SourceForm({ locale }: { locale: string }) {
       <input name="publisher" required placeholder="Publisher" className={control} />
       <input name="feedUrl" placeholder="https:// feed address" className={control} />
       <select name="kind" className={control}><option value="rss">RSS</option><option value="atom">Atom</option><option value="official">Official site</option><option value="official_emergency">Official emergency feed</option><option value="partner">Licensed partner</option><option value="submission">Submission desk</option></select>
-      <select name="region" className={control}><option value="rustenburg">Rustenburg</option><option value="north-west">North West</option><option value="national">National</option><option value="business">Business</option><option value="education">Education</option><option value="sport">Sport</option><option value="notices">Notices</option><option value="community">Community</option><option value="traffic">Traffic</option></select>
+      <select name="region" className={control}>
+        <option value="rustenburg">Rustenburg</option>
+        <option value="north-west">North West</option>
+        <option value="national">National</option>
+        <option value="africa">Africa</option>
+        <option value="international">International</option>
+        <option value="business">Business</option>
+        <option value="education">Education</option>
+        <option value="sport">Sport</option>
+        <option value="health">Health</option>
+        <option value="technology">Technology</option>
+        <option value="agriculture">Agriculture</option>
+        <option value="tourism">Tourism</option>
+        <option value="notices">Notices</option>
+        <option value="community">Community</option>
+        <option value="traffic">Traffic</option>
+      </select>
       <select name="permitted" className={control}><option value="headline_link">Headline and link only</option><option value="licensed_summary">Licensed short summary</option><option value="none">No reuse</option></select>
       <input name="category" placeholder="Category slug" className={control} defaultValue="local-news" />
       <textarea name="rights" required placeholder="What this publisher permits us to store" className={control} />
@@ -209,7 +228,7 @@ function IngestList({ locale }: { locale: string }) {
     <ul className="space-y-2">
       {sources.map((source) => (
         <li key={String(source.id)} className="glass-card p-4 text-sm">
-          <strong>{String(source.name)}</strong> · {String(source.status)} · {String(source.permitted_use)}
+          <strong>{String(source.name)}</strong> · {String(source.status)} · {String(source.permitted_use)} · {String(source.publisher)}
           {source.last_error ? <p>Last check: {String(source.last_error)}</p> : null}
           <form action={cityDeskAction} className="mt-2 flex flex-wrap gap-2">
             <HiddenLocale locale={locale} />
@@ -228,6 +247,47 @@ function IngestList({ locale }: { locale: string }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+function CoverageDesk() {
+  const report = sourceDiversityReport();
+  return (
+    <div className="space-y-6">
+      <section className="glass-card space-y-2 p-4 text-sm">
+        <h2 className="font-serif text-2xl">Source coverage</h2>
+        <p>
+          {report.totals.active} active sources · {report.totals.items} discovered items · {report.totals.failed} with errors · {report.totals.stale} stale (no success in 24h).
+          SAnews is one source among several. Feeds store headline, permitted summary and original link only.
+        </p>
+      </section>
+      <section className="glass-card p-4">
+        <h3 className="font-serif text-xl">Departments</h3>
+        <ul className="mt-3 space-y-2 text-sm">
+          {report.departments.map((row) => (
+            <li key={String(row.section)} className="flex flex-wrap justify-between gap-2 border-b border-black/5 py-2 dark:border-white/10">
+              <span><strong>/{String(row.section)}</strong></span>
+              <span>
+                {Number(row.activeSources)} active source{Number(row.activeSources) === 1 ? "" : "s"} · {Number(row.published)} published
+                {row.empty ? " · needs coverage" : ""}
+                {row.singleSource ? " · only one source" : ""}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
+      <section className="glass-card p-4">
+        <h3 className="font-serif text-xl">Sources</h3>
+        <ul className="mt-3 space-y-2 text-sm">
+          {report.sources.map((source) => (
+            <li key={String(source.id)}>
+              <strong>{String(source.name)}</strong> · {String(source.publisher)} · {String(source.status)} · discovered {String(source.discovered)} · published {String(source.published)}
+              <p className="text-muted">Departments: {String(source.departments || "none")}{source.last_error ? ` · error: ${String(source.last_error)}` : ""}</p>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </div>
   );
 }
 

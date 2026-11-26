@@ -11,6 +11,7 @@ import { adProducts, listBusinesses, listProducts } from "@/server/commerce";
 import { listCourses, listCreatorPosts, listEvents, listFixtures, listJobs, listRecords, moduleKeyForSection, publicMap, standings } from "@/server/city";
 import { listGroups } from "@/server/platform";
 import { publishedNews, radioState, wireDesk, breakingNews } from "@/server/citydesk";
+import { departmentWires } from "@/server/multisource";
 import { RadioMini } from "@/components/radio-mini";
 import { deskAction, groupAction, postAction, topicAction } from "@/server/actions";
 import { askCity, buildBriefing } from "@/server/engage";
@@ -37,8 +38,35 @@ export default async function SectionPage({ params, searchParams }: { params: Pr
         {section === "news" ? newsCategories().map((category) => <Link key={category.slug} className="rounded-full border px-3 py-2" href={localePath(locale, `/news/${category.slug}`)}>{category.name}</Link>) : null}
       </div>
       {section !== "news" ? <DepartmentStories locale={locale} section={section} /> : null}
+      {section !== "news" ? <DepartmentWires locale={locale} section={section} /> : null}
       <SectionBody locale={locale} section={section} userId={user?.id || null} category={query.category} q={query.q} soon={query.soon === "1"} view={query.view} />
     </div>
+  );
+}
+
+function DepartmentWires({ locale, section }: { locale: string; section: string }) {
+  const wires = departmentWires(section, 8);
+  if (!wires.length) return null;
+  return (
+    <section className="mb-8 space-y-3">
+      <h2 className="font-serif text-2xl">From independent sources</h2>
+      <p className="text-sm text-muted">Attributed headlines and links. Full articles stay with the original publisher.</p>
+      <div className="space-y-3">
+        {wires.map((item) => (
+          <article key={String(item.id)} className="news-row">
+            <p className="news-kicker">{String(item.source_name || item.publisher)} · {String(item.region)}</p>
+            <h3 className="font-serif text-xl">
+              {typeof item.canonical_url === "string" && item.canonical_url.startsWith("http") ? (
+                <a href={String(item.canonical_url)} rel="noopener noreferrer">{String(item.headline)}</a>
+              ) : (
+                <Link href={localePath(locale, `/news/${item.slug}`)}>{String(item.headline)}</Link>
+              )}
+            </h3>
+            <p className="text-sm">{String(item.summary)}</p>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -78,7 +106,7 @@ function SectionBody({ locale, section, userId, category, q, soon, view }: { loc
     if (!news.items.length && !wires.length && !breaking.length && !deskStories.length) return <Empty locale={locale} />;
     return (
       <div className="space-y-4">
-        <p className="text-sm">{source ? `Official feed “${source.name}” last checked ${source.checked ? source.checked.slice(0, 16) : "not yet"}.${source.error ? ` Last error: ${source.error}` : ""}` : "No official feed is installed."} <a className="font-semibold text-[#1d4e89]" href="/api/v1/briefing.xml">Briefing feed</a></p>
+        <p className="text-sm">{source ? `${source.active || 1} active wire source${(source.active || 1) === 1 ? "" : "s"} (including “${source.name}”). Last SAnews check ${source.checked ? source.checked.slice(0, 16) : "not yet"}.${source.error ? ` Last error: ${source.error}` : ""}` : "No wire sources are installed yet."} SAnews is one contributor among several. <a className="font-semibold text-[#1d4e89]" href="/api/v1/briefing.xml">Briefing feed</a></p>
         {breaking.length ? <ul className="space-y-2">{breaking.map((item) => <li key={String(item.id)} className="text-sm"><span className="font-semibold uppercase text-[#1d4e89]">Breaking</span> · <Link href={localePath(locale, `/news/${item.slug}`)}>{String(item.headline)}</Link> · {String(item.publisher)}</li>)}</ul> : <p className="text-sm">No story is marked breaking.</p>}
         {userId ? <div className="flex flex-wrap gap-2">{newsCategories().map((item) => <form key={item.slug} action={topicAction}><input type="hidden" name="locale" value={locale} /><input type="hidden" name="category" value={item.slug} /><input type="hidden" name="return" value={localePath(locale, "/news")} /><button className="rounded-full border px-3 py-1 text-xs">Follow {item.name}</button></form>)}</div> : null}
         {deskStories.length ? <div className="grid gap-4 md:grid-cols-3">{deskStories.map((story) => <StoryCard key={story.id} locale={locale} href={localePath(locale, `/news/${story.slug}`)} title={story.title} excerpt={story.excerpt} meta={`${story.author} · desk update`} image={story.image} video={story.video} demo={story.demo} />)}</div> : null}

@@ -4,6 +4,7 @@ import { dataDir } from "./crypto";
 import { closeDb, getDb } from "./db";
 import { seedDatabase } from "./seed";
 import { installOfficialWires } from "./citydesk";
+import { installCuratedSources } from "./multisource";
 
 let ready = false;
 
@@ -15,6 +16,7 @@ export function ensureReady(): void {
     ready = true;
     seedDatabase();
     installOfficialWires();
+    installCuratedSources();
   }
 }
 

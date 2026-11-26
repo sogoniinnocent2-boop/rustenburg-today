@@ -9,7 +9,23 @@ import { requirePermission } from "./permissions";
 import { fanout } from "./alerts";
 import { audit, indexDocument, removeIndex } from "./store";
 
-const REGIONS = new Set(["rustenburg", "north-west", "national", "business", "education", "sport", "notices", "community", "traffic"]);
+const REGIONS = new Set([
+  "rustenburg",
+  "north-west",
+  "national",
+  "africa",
+  "international",
+  "business",
+  "education",
+  "sport",
+  "health",
+  "technology",
+  "agriculture",
+  "tourism",
+  "notices",
+  "community",
+  "traffic",
+]);
 const KINDS = new Set(["rss", "atom", "official", "official_emergency", "partner", "submission"]);
 const SENSITIVE = /\b(murder|killed|rape|sexual|court|charged|accused|election|outbreak|died|death|suicide|fraud|corrupt|defam|shootings?|kidnapp(?:ing|ed)|assault|gunman|gunmen)\b/i;
 
@@ -123,9 +139,13 @@ export function storeFeedItems(sourceId: string, entries: FeedEntry[], now = new
       new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString(),
     );
     const sensitive = SENSITIVE.test(`${headline} ${entry.summary}`) ? 1 : 0;
-    const officialWire = source.kind === "official" && source.permitted_use === "headline_link" && sensitive === 0 && !prior;
+    const linkOnly =
+      source.permitted_use === "headline_link" &&
+      sensitive === 0 &&
+      !prior &&
+      (source.kind === "official" || source.kind === "rss" || source.kind === "atom" || source.kind === "partner");
     const emergency = source.auto_breaking === 1 && source.kind === "official_emergency" && sensitive === 0 && !prior;
-    const publish = officialWire || emergency;
+    const publish = linkOnly || emergency;
     const id = newId();
     const slug = uniqueItemSlug(headline);
     run(
@@ -163,7 +183,7 @@ export function storeFeedItems(sourceId: string, entries: FeedEntry[], now = new
       held += 1;
     }
   }
-  run("UPDATE news_sources SET last_checked_at = ?, last_error = NULL WHERE id = ?", now, source.id);
+  run("UPDATE news_sources SET last_checked_at = ?, last_success_at = ?, last_error = NULL WHERE id = ?", now, now, source.id);
   return { inserted, duplicates, held };
 }
 
@@ -193,10 +213,9 @@ export async function pullSource(id: string): Promise<IngestResult> {
 }
 
 export async function pullActiveSources(): Promise<number> {
-  ensureReady();
-  const sources = all<{ id: string }>("SELECT id FROM news_sources WHERE status = 'active' AND feed_url IS NOT NULL");
-  for (const source of sources) await pullSource(source.id);
-  return sources.length;
+  const { pullDueSources } = await import("./multisource");
+  const result = await pullDueSources();
+  return result.attempted;
 }
 
 export function reviewNewsItem(user: SessionUser, id: string, decision: "publish" | "reject" | "breaking" | "withdraw", note?: string): void {
@@ -299,24 +318,24 @@ export function freshWires(limit = 8): Array<Record<string, unknown>> {
   );
 }
 
-export function wireDesk(): { name: string; checked: string | null; error: string | null } | null {
+export function wireDesk(): { name: string; checked: string | null; error: string | null; active: number } | null {
   ensureReady();
-  return get<{ name: string; checked: string | null; error: string | null }>("SELECT name, last_checked_at as checked, last_error as error FROM news_sources WHERE feed_url = 'https://www.sanews.gov.za/rss.xml'") ?? null;
+  const active = Number(get<{ total: number }>("SELECT COUNT(*) as total FROM news_sources WHERE status = 'active'")?.total || 0);
+  const sanews = get<{ name: string; checked: string | null; error: string | null }>(
+    "SELECT name, last_checked_at as checked, last_error as error FROM news_sources WHERE feed_url = 'https://www.sanews.gov.za/rss.xml'",
+  );
+  if (!active && !sanews) return null;
+  return {
+    name: sanews?.name || "Multi-source desk",
+    checked: sanews?.checked || null,
+    error: sanews?.error || null,
+    active,
+  };
 }
 
 export function installOfficialWires(): void {
   ensureReady();
-  const url = "https://www.sanews.gov.za/rss.xml";
-  if (get("SELECT id FROM news_sources WHERE feed_url = ?", url)) return;
-  const stamp = new Date().toISOString();
-  run(
-    `INSERT INTO news_sources (id, name, kind, feed_url, homepage_url, publisher, region, category_slug, rights_note, permitted_use, auto_breaking, status, created_at)
-     VALUES (?, 'SAnews', 'official', ?, 'https://www.sanews.gov.za/', 'SAnews', 'national', 'government', ?, 'headline_link', 0, 'active', ?)`,
-    newId(),
-    url,
-    "GCIS publishes this RSS feed for syndication. The desk stores the headline, a short summary, the original date and a link. Full articles and photographs are not copied.",
-    stamp,
-  );
+  // Multi-source catalog (including SAnews) is installed by installCuratedSources() during boot.
 }
 
 export function homeEdition(): { editorial: boolean; slides: TopStory[]; latest: TopStory[]; local: TopStory[] } {

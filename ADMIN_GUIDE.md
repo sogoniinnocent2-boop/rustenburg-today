@@ -29,7 +29,7 @@ One person can hold several departments. Create the account once, then use **Ass
 
 Each assigned person is a content owner for their section. They open `/department`, sign in, then select their desk. What they publish goes live on that section’s public page and helps keep the main site informative. They cannot publish to a department they are not assigned to. The desk story report and CSV download show views and reactions for that department’s stories.
 
-SAnews RSS keeps feeding News as headline links. Desk-published articles appear on the same News page as your own reporting.
+Multiple independent RSS feeds (SAnews, BBC, Al Jazeera, WHO, ReliefWeb and more) feed headline+link rows into mapped departments. SAnews is one contributor, not the only one. Open **Admin → Source coverage** to see active sources, empty departments, and feed errors. **Admin → Ingestion** still fetches or pauses a source. Desk-published articles appear on the same section pages as your own reporting.
 
 One-time passwords for newly created staff are written under `data/department-*.txt`. Change those passwords after the first sign-in.
 
