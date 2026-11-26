@@ -29,9 +29,10 @@ export default async function TicketsPage({ params, searchParams }: { params: Pr
   const list = [...events.values()];
   return (
     <div>
-      <PageIntro locale={locale} kicker={t(locale, "nav.tickets")} title="Find your experience. Book your place." summary="Published events and the ticket types their organisers have listed. The server calculates the total from the listed price. No platform fee is configured. A ticket code is created only after a signed payment confirmation, or when the organiser issues a complimentary ticket. Unpaid holds release after 15 minutes." />
-      <Notice error={query.error} notice={query.notice} />
-      <p className="mb-4 text-sm">Payment mode: {payments}. Card checkout is not connected, so a reservation stays unpaid.</p>
+      <PageIntro locale={locale} kicker={t(locale, "nav.tickets")} title="Find your experience. Book your place." summary="Published events and the ticket types their organisers have listed. The server calculates the total from the listed price. No platform fee is configured. A free ticket is issued straight away. A priced ticket stays unpaid until a signed payment arrives. Unpaid holds release after 15 minutes." />
+      <Notice error={query.error} notice={query.notice === "issued" ? "Your free ticket is issued. The code is listed below." : query.notice === "unpaid" ? "This reservation is unpaid. A priced ticket is issued only after a signed payment." : query.notice} />
+      <p className="mb-4 text-sm">Payment mode: {payments}. A free ticket is issued now. A priced ticket stays unpaid until a signed payment arrives.</p>
+      {user ? null : <p className="mb-4 text-sm"><Link className="font-semibold" href={localePath(locale, "/auth/sign-in?next=/tickets")}>Sign in</Link> to reserve a ticket, or <Link className="font-semibold" href={localePath(locale, "/auth/sign-up")}>create an account</Link>.</p>}
       {user ? (
         <section className="mb-6 glass-card space-y-3 p-4">
           <h2 className="font-serif text-2xl">Your tickets</h2>
@@ -86,7 +87,7 @@ export default async function TicketsPage({ params, searchParams }: { params: Pr
                   <input type="hidden" name="locale" value={locale} />
                   <select name="ticket" className="rounded-full border px-3 py-2">{event.tickets.map((ticket) => <option key={String(ticket.ticket_id)} value={String(ticket.ticket_id)}>{String(ticket.ticket_type)}</option>)}</select>
                   <input name="quantity" type="number" min={1} max={8} defaultValue={1} className="w-20 rounded-full border px-3 py-2" />
-                  <button className="rounded-full bg-forest px-3 py-2 text-sm text-cloud">Reserve unpaid</button>
+                  <button className="rounded-full bg-forest px-3 py-2 text-sm text-cloud">{event.tickets.every((ticket) => Number(ticket.price_cents || 0) === 0) ? "Get free ticket" : "Reserve"}</button>
                 </form>
               ) : null}
             </article>

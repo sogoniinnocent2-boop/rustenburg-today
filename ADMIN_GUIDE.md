@@ -21,6 +21,18 @@ Use the tabs for editorial, community, business, marketplace, jobs, events, lear
 - Reports can remove a post, comment, listing or profile. The action is stored in `moderation_actions` and `audit_logs`.
 - Role requests for journalist, editor and moderator are approved or declined here. Do not grant administrator from a casual request.
 
+## Department desks
+
+Open **Admin → Departments** to create staff accounts or assign an existing email to a section (`news`, `jobs`, `health`, `tourism`, and the other city pages).
+
+One person can hold several departments. Create the account once, then use **Assign another department** with the same email for each extra section. Revoke removes only that section.
+
+Each assigned person signs in with their own account and opens `/en/desk`. What they publish there goes live on that section’s public page. They cannot publish to a department they are not assigned to. The desk story report and CSV download show views and reactions for that department’s stories.
+
+SAnews RSS keeps feeding News as headline links. Desk-published articles appear on the same News page as your own reporting.
+
+One-time passwords for newly created staff are written under `data/department-*.txt`. Change those passwords after the first sign-in.
+
 ## Backup
 
 “Create backup” copies the SQLite file into `data/backups`. Stop the server before you restore a copy over `data/rustenburg.db`.

@@ -4,8 +4,10 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { isLocale } from "@/lib/i18n";
 import { randsToCents } from "@/lib/text";
-import { loginAccount, logoutCookie, registerAccount, requestPasswordReset, resetPassword, updateProfile, verifyEmail, deleteAccount, changePassword, enableSelfServeRole, requestPrivilegedRole, exportAccount, userFromCookie, decideRoleRequest, setUserStatus } from "./auth";
-import { addArticleComment, approveTranslation, createArticle, fileTranslation, reviewArticle, submitArticle } from "./editorial";
+import { loginAccount, logoutCookie, registerAccount, requestPasswordReset, resetPassword, updateProfile, verifyEmail, deleteAccount, changePassword, enableSelfServeRole, requestPrivilegedRole, exportAccount, userFromCookie, decideRoleRequest, setUserStatus, startSession } from "./auth";
+import { safeReturn } from "@/lib/safe-return";
+import { addArticleComment, approveTranslation, createArticle, fileTranslation, publishDeskArticle, publishDeskStory, reactToArticle, reviewArticle, submitArticle } from "./editorial";
+import { assignDepartment, createDepartmentStaff, revokeDepartment, requireAssigned } from "./departments";
 import { blockUser, commentOnPost, createPost, moderatePost, publishDraft, reactToPost, toggleFollow, voteInPoll } from "./community";
 import { applyToJob, completeLesson, createCourse, createEvent, createJob, createRecord, enrol, issueCertificate, publishCourse, publishEvent, publishJob, publishRecord, registerForEvent, reportMapPoint, saveCandidate, signPetition, pledgeDonation, requestQuote, enterCompetition, saveDeal, submitQuiz, addMenuItem, addPlayer, addFixture, recordResult, createCreatorPost, publishCreatorPost, subscribeCreator, createRewardOffer, publishRewardOffer } from "./city";
 import { cancelUnpaidOrder, createCampaign, createOrder, createProduct, enquireAboutBusiness, enquireAboutProduct, registerBusiness, reviewCampaign, verifyBusiness, verifyCampaignPayment, moderateProduct } from "./commerce";
@@ -46,6 +48,10 @@ function localeOf(form: FormData): string {
   return isLocale(locale) ? locale : "en";
 }
 
+function deskPath(locale: string, value: string): string | null {
+  return safeReturn(locale, value);
+}
+
 function fail(locale: string, next: string, error: unknown): never {
   if (redirectError(error)) throw error;
   const message = error instanceof AppError || error instanceof Error ? error.message : "Something went wrong";
@@ -62,7 +68,7 @@ export async function signInAction(form: FormData): Promise<void> {
   try {
     const result = loginAccount(text(form, "email"), String(form.get("password") || ""), { ip: await clientIp(), userAgent: (await headers()).get("user-agent") || undefined });
     await writeSession(result.cookie);
-    redirect(`/${locale}/account`);
+    redirect(deskPath(locale, text(form, "next")) || `/${locale}/account`);
   } catch (error) {
     fail(locale, "/auth/sign-in", error);
   }
@@ -94,8 +100,9 @@ export async function signUpAction(form: FormData): Promise<void> {
 export async function verifyAction(form: FormData): Promise<void> {
   const locale = localeOf(form);
   try {
-    verifyEmail(text(form, "token"));
-    redirect(`/${locale}/auth/sign-in?notice=verified`);
+    const verified = verifyEmail(text(form, "token"));
+    await writeSession(startSession(verified.id, { ip: await clientIp(), userAgent: (await headers()).get("user-agent") || undefined }));
+    redirect(`/${locale}/account?notice=verified`);
   } catch (error) {
     fail(locale, "/auth/verify", error);
   }
@@ -287,8 +294,14 @@ export async function reactionAction(form: FormData): Promise<void> {
   const locale = localeOf(form);
   const user = await currentUser();
   if (!user) redirect(`/${locale}/auth/sign-in`);
-  reactToPost(user, text(form, "id"), text(form, "reaction") || "like");
-  redirect(text(form, "return") || `/${locale}/community`);
+  const back = text(form, "return") || `/${locale}/community`;
+  try {
+    if (text(form, "kind") === "article") reactToArticle(user, text(form, "id"), text(form, "reaction") || "like");
+    else reactToPost(user, text(form, "id"), text(form, "reaction") || "like");
+    redirect(back);
+  } catch (error) {
+    fail(locale, localPath(locale, back), error);
+  }
 }
 
 export async function voteAction(form: FormData): Promise<void> {
@@ -842,8 +855,8 @@ export async function ticketOrderAction(form: FormData): Promise<void> {
   const user = await currentUser();
   if (!user) redirect(`/${locale}/auth/sign-in`);
   try {
-    createTicketOrder(user, text(form, "ticket"), Number(text(form, "quantity") || 1));
-    redirect(`/${locale}/tickets?notice=unpaid`);
+    const order = createTicketOrder(user, text(form, "ticket"), Number(text(form, "quantity") || 1));
+    redirect(`/${locale}/tickets?notice=${order.amountCents === 0 ? "issued" : "unpaid"}`);
   } catch (error) {
     fail(locale, "/tickets", error);
   }
@@ -1202,5 +1215,123 @@ export async function boardAction(form: FormData): Promise<void> {
     redirect(`/${locale}/desks/${kind}?notice=${notice}`);
   } catch (error) {
     fail(locale, `/desks/${kind}`, error);
+  }
+}
+
+export async function departmentAction(form: FormData): Promise<void> {
+  const locale = localeOf(form);
+  const user = await currentUser();
+  if (!user) redirect(`/${locale}/auth/sign-in`);
+  try {
+    const intent = text(form, "intent");
+    if (intent === "create") {
+      createDepartmentStaff(user, {
+        email: text(form, "email"),
+        displayName: text(form, "displayName"),
+        section: text(form, "section"),
+        password: text(form, "password") || undefined,
+      });
+      redirect(`/${locale}/admin/departments?notice=staff-created`);
+    }
+    if (intent === "assign") {
+      assignDepartment(user, { email: text(form, "email"), section: text(form, "section") });
+      redirect(`/${locale}/admin/departments?notice=assigned`);
+    }
+    if (intent === "revoke") {
+      revokeDepartment(user, text(form, "userId"), text(form, "section"));
+      redirect(`/${locale}/admin/departments?notice=revoked`);
+    }
+    throw new AppError(400, "Unknown department action");
+  } catch (error) {
+    fail(locale, "/admin/departments", error);
+  }
+}
+
+export async function deskPublishAction(form: FormData): Promise<void> {
+  const locale = localeOf(form);
+  const user = await currentUser();
+  if (!user) redirect(`/${locale}/auth/sign-in`);
+  const section = text(form, "section");
+  try {
+    requireAssigned(user, section);
+    if (text(form, "intent") === "story") {
+      const file = form.get("image");
+      if (!(file instanceof File) || file.size <= 0) throw new AppError(400, "Add a picture for this story update");
+      const imageUrl = (await saveUploadFile(user, file, "image")).url;
+      const created = publishDeskStory(user, {
+        section,
+        language: text(form, "language") || locale,
+        headline: text(form, "headline") || text(form, "title"),
+        summary: text(form, "summary") || text(form, "excerpt"),
+        body: text(form, "body"),
+        categorySlug: text(form, "category") || undefined,
+        tags: text(form, "tags") || undefined,
+        imageUrl,
+        videoUrl: text(form, "videoUrl") || null,
+      });
+      redirect(`/${locale}/desk/${section}?notice=published&id=${created.id}`);
+    }
+    if (section === "news") {
+      let imageUrl: string | null = null;
+      const file = form.get("image");
+      if (file instanceof File && file.size > 0) imageUrl = (await saveUploadFile(user, file, "image")).url;
+      const created = publishDeskArticle(user, {
+        categorySlug: text(form, "category") || "local-news",
+        language: text(form, "language") || locale,
+        title: text(form, "title"),
+        excerpt: text(form, "excerpt"),
+        body: text(form, "body"),
+        tags: text(form, "tags"),
+        sourceName: text(form, "sourceName"),
+        sourceUrl: text(form, "sourceUrl"),
+        imageUrl,
+        departmentSlug: "news",
+      });
+      redirect(`/${locale}/desk/news?notice=published&id=${created.id}`);
+    }
+    if (section === "jobs") {
+      const id = createJob(user, {
+        title: text(form, "title"),
+        description: text(form, "description"),
+        jobType: text(form, "jobType") || "full-time",
+        closing: text(form, "closing") || undefined,
+      }, { publish: true });
+      redirect(`/${locale}/desk/jobs?notice=published&id=${id}`);
+    }
+    if (section === "events") {
+      const created = createEvent(user, {
+        title: text(form, "title"),
+        description: text(form, "description"),
+        category: text(form, "category") || "community",
+        start: text(form, "start"),
+        venue: text(form, "venue") || undefined,
+      }, { publish: true });
+      redirect(`/${locale}/desk/events?notice=published&id=${created.id}`);
+    }
+    if (section === "learn") {
+      const course = createCourse(user, { title: text(form, "title"), description: text(form, "description"), priceRands: text(form, "price") || undefined });
+      redirect(`/${locale}/desk/learn?notice=draft&id=${course.id}`);
+    }
+    if (section === "business") {
+      const created = registerBusiness(user, {
+        name: text(form, "name"),
+        description: text(form, "description"),
+        categorySlug: text(form, "category") || undefined,
+        phone: text(form, "phone") || undefined,
+        address: text(form, "address") || undefined,
+        website: text(form, "website") || undefined,
+      }, { publish: true });
+      redirect(`/${locale}/desk/business?notice=published&id=${created.id}`);
+    }
+    const moduleKey = text(form, "module");
+    if (moduleKey) {
+      const input: Record<string, string> = {};
+      for (const [key, value] of form.entries()) if (typeof value === "string") input[key] = value;
+      const id = createRecord(user, moduleKey, input, { publish: true });
+      redirect(`/${locale}/desk/${section}?notice=published&id=${id}`);
+    }
+    throw new AppError(400, "This department form is not wired for live publish yet");
+  } catch (error) {
+    fail(locale, `/desk/${section || ""}`, error);
   }
 }

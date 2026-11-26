@@ -4,7 +4,7 @@ import { localePath, t } from "@/lib/i18n";
 import { sectionBySlug } from "@/lib/sections";
 import { divisionForSlug } from "@/lib/divisions";
 import { Empty, HiddenLocale, Money, PageIntro, StoryCard, When, button, control } from "@/components/chrome";
-import { newsCategories, listArticles, listCorrections } from "@/server/editorial";
+import { newsCategories, listArticles, listCorrections, listDepartmentStories } from "@/server/editorial";
 import { listDrafts, listPosts } from "@/server/community";
 import { listPodcasts, listVideos, listTalent, radioDesk } from "@/server/media";
 import { adProducts, listBusinesses, listProducts } from "@/server/commerce";
@@ -36,8 +36,34 @@ export default async function SectionPage({ params, searchParams }: { params: Pr
         <Link className="rounded-full bg-emerald px-4 py-2 font-semibold text-white" href={localePath(locale, `/${section}/new`)}>{t(locale, "create")}</Link>
         {section === "news" ? newsCategories().map((category) => <Link key={category.slug} className="rounded-full border px-3 py-2" href={localePath(locale, `/news/${category.slug}`)}>{category.name}</Link>) : null}
       </div>
+      {section !== "news" ? <DepartmentStories locale={locale} section={section} /> : null}
       <SectionBody locale={locale} section={section} userId={user?.id || null} category={query.category} q={query.q} soon={query.soon === "1"} view={query.view} />
     </div>
+  );
+}
+
+function DepartmentStories({ locale, section }: { locale: string; section: string }) {
+  const stories = listDepartmentStories(section, locale, 8);
+  if (!stories.length) return null;
+  return (
+    <section className="mb-8 space-y-3">
+      <h2 className="font-serif text-2xl">Department updates</h2>
+      <div className="grid gap-4 md:grid-cols-3">
+        {stories.map((story) => (
+          <StoryCard
+            key={story.id}
+            locale={locale}
+            href={localePath(locale, `/news/${story.slug}`)}
+            title={story.title}
+            excerpt={story.excerpt}
+            meta={`${story.author} · ${story.readingMinutes} min`}
+            image={story.image}
+            video={story.video}
+            demo={story.demo}
+          />
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -48,14 +74,16 @@ function SectionBody({ locale, section, userId, category, q, soon, view }: { loc
     const source = wireDesk();
     const corrections = listCorrections();
     const breaking = breakingNews();
-    if (!news.items.length && !wires.length && !breaking.length) return <Empty locale={locale} />;
+    const deskStories = listDepartmentStories("news", locale, 12);
+    if (!news.items.length && !wires.length && !breaking.length && !deskStories.length) return <Empty locale={locale} />;
     return (
       <div className="space-y-4">
         <p className="text-sm">{source ? `Official feed “${source.name}” last checked ${source.checked ? source.checked.slice(0, 16) : "not yet"}.${source.error ? ` Last error: ${source.error}` : ""}` : "No official feed is installed."} <a className="font-semibold text-[#1d4e89]" href="/api/v1/briefing.xml">Briefing feed</a></p>
         {breaking.length ? <ul className="space-y-2">{breaking.map((item) => <li key={String(item.id)} className="text-sm"><span className="font-semibold uppercase text-[#1d4e89]">Breaking</span> · <Link href={localePath(locale, `/news/${item.slug}`)}>{String(item.headline)}</Link> · {String(item.publisher)}</li>)}</ul> : <p className="text-sm">No story is marked breaking.</p>}
         {userId ? <div className="flex flex-wrap gap-2">{newsCategories().map((item) => <form key={item.slug} action={topicAction}><input type="hidden" name="locale" value={locale} /><input type="hidden" name="category" value={item.slug} /><input type="hidden" name="return" value={localePath(locale, "/news")} /><button className="rounded-full border px-3 py-1 text-xs">Follow {item.name}</button></form>)}</div> : null}
+        {deskStories.length ? <div className="grid gap-4 md:grid-cols-3">{deskStories.map((story) => <StoryCard key={story.id} locale={locale} href={localePath(locale, `/news/${story.slug}`)} title={story.title} excerpt={story.excerpt} meta={`${story.author} · desk update`} image={story.image} video={story.video} demo={story.demo} />)}</div> : null}
         {wires.map((item) => <article key={String(item.id)} className="news-row"><p className="news-kicker">{String(item.region)}{item.sponsored ? " · Sponsored" : ""}</p><h2 className="font-serif text-2xl"><Link href={localePath(locale, `/news/${item.slug}`)}>{String(item.headline)}</Link></h2><p className="text-sm">{String(item.summary)}</p><p className="text-xs text-muted">{String(item.publisher)}{item.author_name ? ` · ${item.author_name}` : ""}{typeof item.canonical_url === "string" && item.canonical_url.startsWith("http") ? <> · <a href={item.canonical_url}>Open the original</a></> : null}</p></article>)}
-        <div className="grid gap-4 md:grid-cols-3">{news.items.map((story) => <StoryCard key={story.id} locale={locale} href={localePath(locale, `/news/${story.slug}`)} title={story.title} excerpt={story.excerpt} meta={`${story.category} · ${story.readingMinutes} min`} demo={story.demo} />)}</div>
+        <div className="grid gap-4 md:grid-cols-3">{news.items.filter((story) => !deskStories.some((desk) => desk.id === story.id)).map((story) => <StoryCard key={story.id} locale={locale} href={localePath(locale, `/news/${story.slug}`)} title={story.title} excerpt={story.excerpt} meta={`${story.category} · ${story.readingMinutes} min`} image={story.image} video={story.video} demo={story.demo} />)}</div>
         <section>
           <h2 className="font-serif text-2xl">Corrections</h2>
           {corrections.length ? <ul className="mt-2 space-y-2">{corrections.map((item) => <li key={`${item.slug}-${item.created_at}`} className="text-sm"><Link className="font-semibold" href={localePath(locale, `/news/${item.slug}`)}>{item.title}</Link> · {item.note}</li>)}</ul> : <p className="text-sm">No correction is on file.</p>}
@@ -78,7 +106,7 @@ function SectionBody({ locale, section, userId, category, q, soon, view }: { loc
           <Link className="rounded-full border px-3 py-1" href={localePath(locale, "/live")}>Live notices</Link>
         </div>
         <p className="text-sm">Public posts, comments and follows. There is no private chat and no endless video feed. A video, when someone adds one, is a single YouTube or Vimeo post.</p>
-        {view === "following" && !userId ? <p className="text-sm">Sign in to see posts from people you follow.</p> : null}
+        {view === "following" && !userId ? <p className="text-sm"><Link className="font-semibold" href={localePath(locale, "/auth/sign-in?next=/community")}>Sign in</Link> to see posts from people you follow, or <Link className="font-semibold" href={localePath(locale, "/auth/sign-up")}>create an account</Link> and write one.</p> : null}
         {view === "drafts" ? (drafts.length ? drafts.map((draft) => (
           <article key={draft.id} className="rounded-3xl bg-white p-5 dark:bg-white/5">
             <p className="text-sm text-emerald">Draft · {draft.post_type}</p>
@@ -200,6 +228,16 @@ function SectionBody({ locale, section, userId, category, q, soon, view }: { loc
         <p>{aiStatus().reason} Nothing on this page sends your text to an outside model.</p>
         <p><Link className="font-semibold" href={localePath(locale, "/tools")}>Document tools</Link> count words and download a file on this server.</p>
         <p><Link className="font-semibold" href={localePath(locale, "/study")}>Study timer</Link>, <Link className="font-semibold" href={localePath(locale, "/languages")}>language practice</Link> and <Link className="font-semibold" href={localePath(locale, "/k53")}>K53 notes</Link> stay free.</p>
+      </div>
+    );
+  }
+  if (section === "property") {
+    const rows = listRecords("property");
+    return (
+      <div className="space-y-4">
+        <p className="text-sm">Published listings are here. Open one to request a viewing or a stay. A new listing stays off this page until it is reviewed. The price is the one the owner entered.</p>
+        {userId ? <p className="text-sm"><Link className="font-semibold" href={localePath(locale, "/property/new")}>List a property</Link>. It stays off this page until it is reviewed.</p> : <p className="text-sm"><Link className="font-semibold" href={localePath(locale, "/auth/sign-in?next=/property")}>Sign in</Link> to request a viewing, or <Link className="font-semibold" href={localePath(locale, "/auth/sign-up")}>create an account</Link>.</p>}
+        {rows.length ? grid(locale, rows, (item) => ({ href: `/property/${item.id}`, title: String(item.title || item.name), excerpt: String(item.description || ""), meta: item.price_cents ? formatRand(item.price_cents) : undefined })) : <Empty locale={locale} />}
       </div>
     );
   }

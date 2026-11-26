@@ -115,7 +115,7 @@ export async function Header({ locale, user, path }: { locale: Locale; user: Ses
             </span>
           </Link>
         </div>
-        <PrimaryNav locale={locale} trackerHref={localePath(locale, user ? "/account/notifications" : "/news")} />
+        <PrimaryNav locale={locale} trackerHref={localePath(locale, "/safetrack")} />
         <div className="flex items-center justify-end gap-1">
           <Link className="bar-icon bar-search-icon" href={localePath(locale, "/search")} aria-label={t(locale, "search")}>
             <SearchIcon />
@@ -134,7 +134,6 @@ export async function Header({ locale, user, path }: { locale: Locale; user: Ses
               {user ? <Link className="nav-link" href={localePath(locale, "/account")}>{t(locale, "account")}</Link> : <Link className="nav-link" href={localePath(locale, "/auth/sign-in")}>{t(locale, "signIn")}</Link>}
               {user ? null : <Link className="nav-link" href={localePath(locale, "/auth/sign-up")}>{t(locale, "register")}</Link>}
               {user ? <Link className="nav-link" href={localePath(locale, "/safetrack")}>SafeTrack</Link> : null}
-              {user?.roles.includes("administrator") ? <Link className="nav-link" href={localePath(locale, "/admin")}>{t(locale, "admin")}</Link> : null}
               {LOCALES.map((item) => (
                 <Link key={item} className="nav-link" href={`/${item}${rest}`}>{item === "en" ? "English" : item === "af" ? "Afrikaans" : "Setswana"}</Link>
               ))}
@@ -299,17 +298,21 @@ function cardKind(href: string): string {
   return "editorial";
 }
 
-export function StoryCard({ locale, href, title, excerpt, meta, demo, sponsored }: { locale: string; href: string; title: string; excerpt?: string; meta?: string; demo?: boolean; sponsored?: boolean }) {
+export function StoryCard({ locale, href, title, excerpt, meta, demo, sponsored, image, video }: { locale: string; href: string; title: string; excerpt?: string; meta?: string; demo?: boolean; sponsored?: boolean; image?: string | null; video?: string | null }) {
   const kind = cardKind(href);
   return (
-    <article className={`glass-card card-${kind} lift flex h-full flex-col p-5`}>
-      <div className="mb-3 flex gap-2 text-xs font-semibold uppercase tracking-wide">
-        {sponsored ? <span className="rounded-full bg-white/80 px-2 py-1 text-forest">{t(locale, "sponsored")}</span> : null}
-        {demo ? <span className="rounded-full bg-forest px-2 py-1 text-cloud">{t(locale, "demo")}</span> : null}
+    <article className={`glass-card card-${kind} lift flex h-full flex-col overflow-hidden p-0`}>
+      {image ? <Link href={href} className="block"><img src={image} alt="" className="h-44 w-full object-cover" /></Link> : null}
+      <div className="flex flex-1 flex-col p-5">
+        <div className="mb-3 flex gap-2 text-xs font-semibold uppercase tracking-wide">
+          {sponsored ? <span className="rounded-full bg-white/80 px-2 py-1 text-forest">{t(locale, "sponsored")}</span> : null}
+          {demo ? <span className="rounded-full bg-forest px-2 py-1 text-cloud">{t(locale, "demo")}</span> : null}
+          {video ? <span className="rounded-full bg-emerald px-2 py-1 text-white">Video</span> : null}
+        </div>
+        <h2 className="font-serif text-2xl leading-snug text-forest dark:text-cloud"><Link href={href}>{title}</Link></h2>
+        {excerpt ? <p className={`mt-2 flex-1 text-sm text-muted ${kind === "social" ? "text-base leading-6" : ""}`}>{excerpt}</p> : null}
+        {meta ? <p className="card-meta mt-4 text-xs uppercase tracking-wide text-emerald">{meta}</p> : null}
       </div>
-      <h2 className="font-serif text-2xl leading-snug text-forest dark:text-cloud"><Link href={href}>{title}</Link></h2>
-      {excerpt ? <p className={`mt-2 flex-1 text-sm text-muted ${kind === "social" ? "text-base leading-6" : ""}`}>{excerpt}</p> : null}
-      {meta ? <p className="card-meta mt-4 text-xs uppercase tracking-wide text-emerald">{meta}</p> : null}
     </article>
   );
 }

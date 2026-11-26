@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 import { localePath, t } from "@/lib/i18n";
 import { sectionBySlug } from "@/lib/sections";
 import { videoEmbed } from "@/lib/text";
+import { ArticleReactions } from "@/components/article-reactions";
 import { Field, HiddenLocale, Money, Notice, PageIntro, Prose, When, button, control } from "@/components/chrome";
-import { getArticle, listArticleComments, newsCategories, relatedStories } from "@/server/editorial";
+import { articleReactions, getArticle, listArticleComments, newsCategories, relatedStories, rememberView } from "@/server/editorial";
 import { newsItemBySlug, openNow } from "@/server/citydesk";
 import { Still } from "@/components/still";
 import { ShareLink } from "@/components/share";
@@ -62,21 +63,37 @@ export default async function DetailPage({ params, searchParams }: { params: Pro
       );
     }
     const comments = listArticleComments(article.id);
+    const reactions = articleReactions(article.id, user?.id);
+    const articleBack = localePath(locale, `/news/${article.slug}`);
+    rememberView(article.slug, user?.id || null);
     return (
       <article>
         <Notice error={query.error} notice={query.notice} />
         <PageIntro locale={locale} kicker={article.category} title={article.title} summary={article.excerpt} />
         {article.demo ? <p className="mb-4 text-sm font-semibold uppercase text-emerald">{t(locale, "demo")}</p> : null}
         {article.fallback ? <p className="mb-4 text-sm">{t(locale, "fallback.language")}</p> : null}
+        {article.image ? <img src={article.image} alt="" className="mb-4 max-h-[28rem] w-full rounded-3xl object-cover" /> : null}
+        {article.video && (article.video.startsWith("https://www.youtube-nocookie.com/embed/") || article.video.startsWith("https://player.vimeo.com/video/")) ? (
+          <iframe className="mb-4 aspect-video w-full rounded-3xl" src={article.video} title={article.title} allowFullScreen />
+        ) : null}
         <Prose text={article.body} />
         <p className="mt-6 text-sm text-muted">{article.author} · {article.readingMinutes} min, counted from this article · <When locale={locale} value={article.publishedAt} /></p>
         {article.sources.length ? <ul className="mt-4 text-sm">{article.sources.map((source) => <li key={source.source_name}>{source.source_name}</li>)}</ul> : null}
         {article.corrections.map((item) => <p key={item.created_at} className="mt-4 rounded-2xl bg-gold/20 p-4 text-sm"><strong>Correction.</strong> {item.note}</p>)}
+        <ArticleReactions
+          locale={locale}
+          articleId={article.id}
+          back={articleBack}
+          signedIn={Boolean(user)}
+          mine={reactions.mine}
+          total={reactions.total}
+          counts={reactions.counts}
+        />
         <div className="mt-6 flex flex-wrap gap-3">
-          <ShareLink className={button} title={article.title} url={localePath(locale, `/news/${article.slug}`)} />
-          {user ? <form action={bookmarkAction}><HiddenLocale locale={locale} /><input type="hidden" name="type" value="article" /><input type="hidden" name="id" value={article.id} /><input type="hidden" name="return" value={localePath(locale, `/news/${article.slug}`)} /><button className={button}>{t(locale, "bookmark")}</button></form> : null}
-          {user ? <TrackStory locale={locale} kind="article" id={article.id} back={localePath(locale, `/news/${article.slug}`)} on={storyIsFollowed(user.id, "article", article.id)} /> : null}
-          {user ? <form action={topicAction}><HiddenLocale locale={locale} /><input type="hidden" name="category" value={article.categorySlug} /><input type="hidden" name="return" value={localePath(locale, `/news/${article.slug}`)} /><button className={button}>Follow {article.category}</button></form> : null}
+          <ShareLink className={button} title={article.title} url={articleBack} />
+          {user ? <form action={bookmarkAction}><HiddenLocale locale={locale} /><input type="hidden" name="type" value="article" /><input type="hidden" name="id" value={article.id} /><input type="hidden" name="return" value={articleBack} /><button className={button}>{t(locale, "bookmark")}</button></form> : null}
+          {user ? <TrackStory locale={locale} kind="article" id={article.id} back={articleBack} on={storyIsFollowed(user.id, "article", article.id)} /> : null}
+          {user ? <form action={topicAction}><HiddenLocale locale={locale} /><input type="hidden" name="category" value={article.categorySlug} /><input type="hidden" name="return" value={articleBack} /><button className={button}>Follow {article.category}</button></form> : null}
         </div>
         <Related locale={locale} category={article.categorySlug} articleId={article.id} />
         {user && (user.roles.includes("editor") || user.roles.includes("administrator")) ? <TranslationDesk locale={locale} articleId={article.id} back={localePath(locale, `/news/${article.slug}`)} /> : null}
@@ -247,6 +264,7 @@ function ReportBox({ locale, type, id, back, user }: { locale: string; type: str
 }
 
 function RecordActions({ locale, section, id, user }: { locale: string; section: string; id: string; user: boolean }) {
+  if (!user && section === "property") return <p className="mt-4 text-sm"><Link href={localePath(locale, "/auth/sign-in?next=/property")}>Sign in to request a viewing or a stay.</Link></p>;
   if (!user) return null;
   const back = localePath(locale, `/${section}/${id}`);
   if (section === "voice") return <form action={simpleAction} className="mt-4"><HiddenLocale locale={locale} /><input type="hidden" name="intent" value="sign-petition" /><input type="hidden" name="id" value={id} /><input type="hidden" name="return" value={back} /><button className={button}>{t(locale, "sign.petition")}</button></form>;

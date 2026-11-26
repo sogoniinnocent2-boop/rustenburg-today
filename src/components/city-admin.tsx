@@ -1,11 +1,13 @@
 import { HiddenLocale, button, control } from "@/components/chrome";
-import { cityDeskAction, mediaLibraryAction, moderateAction } from "@/server/actions";
+import { cityDeskAction, departmentAction, mediaLibraryAction, moderateAction } from "@/server/actions";
 import { listPendingPosts } from "@/server/community";
 import { homepageBlocks, licencesDue, listSources, reviewQueue } from "@/server/citydesk";
 import { listAssets } from "@/server/media-library";
+import { listAssignments, manageableSections } from "@/server/departments";
+import { sectionBySlug } from "@/lib/sections";
 import { all } from "@/server/db";
 
-export const adminTabs = ["dashboard", "news", "ingest", "editorial", "topfive", "media", "reports", "complaints", "jobs", "ads", "radio", "homepage", "weather"];
+export const adminTabs = ["dashboard", "news", "ingest", "editorial", "topfive", "media", "reports", "complaints", "jobs", "ads", "radio", "homepage", "weather", "departments"];
 
 export const adminDeskLinks = [
   ["news", "News sources"],
@@ -20,6 +22,7 @@ export const adminDeskLinks = [
   ["radio", "Radio"],
   ["homepage", "Homepage"],
   ["weather", "Weather note"],
+  ["departments", "Departments"],
 ];
 
 export function CityAdmin({ locale, active }: { locale: string; active: string }) {
@@ -40,6 +43,69 @@ export function CityAdmin({ locale, active }: { locale: string; active: string }
       {active === "radio" ? <RadioForm locale={locale} /> : null}
       {active === "homepage" ? <HomeBlocks locale={locale} /> : null}
       {active === "weather" ? <WeatherForm locale={locale} /> : null}
+      {active === "departments" ? <DepartmentsDesk locale={locale} /> : null}
+    </div>
+  );
+}
+
+function DepartmentsDesk({ locale }: { locale: string }) {
+  const rows = listAssignments();
+  const choices = manageableSections();
+  const people = new Map<string, { user_id: string; email: string; display_name: string; sections: typeof rows }>();
+  for (const row of rows) {
+    const existing = people.get(row.user_id);
+    if (existing) existing.sections.push(row);
+    else people.set(row.user_id, { user_id: row.user_id, email: row.email, display_name: row.display_name, sections: [row] });
+  }
+  return (
+    <div className="grid gap-6 lg:grid-cols-2">
+      <form action={departmentAction} className="space-y-3 rounded-2xl bg-white p-4 dark:bg-white/5">
+        <h2 className="font-serif text-2xl">Create department staff</h2>
+        <p className="text-sm">Creates an individual account, assigns one starting department, and writes a one-time password under data/. Add more departments afterwards with the assign form.</p>
+        <HiddenLocale locale={locale} />
+        <input type="hidden" name="intent" value="create" />
+        <input name="displayName" required placeholder="Full name" className={control} />
+        <input name="email" type="email" required placeholder="work@example.com" className={control} />
+        <select name="section" required className={control}>
+          {choices.map((slug) => {
+            const section = sectionBySlug(slug);
+            return <option key={slug} value={slug}>{section ? section.slug : slug}</option>;
+          })}
+        </select>
+        <button className={button}>Create and assign</button>
+      </form>
+      <form action={departmentAction} className="space-y-3 rounded-2xl bg-white p-4 dark:bg-white/5">
+        <h2 className="font-serif text-2xl">Assign another department</h2>
+        <p className="text-sm">One person can hold several departments. Use their existing email to add another section without creating a second login.</p>
+        <HiddenLocale locale={locale} />
+        <input type="hidden" name="intent" value="assign" />
+        <input name="email" type="email" required placeholder="Existing account email" className={control} />
+        <select name="section" required className={control}>
+          {choices.map((slug) => <option key={slug} value={slug}>{slug}</option>)}
+        </select>
+        <button className={button}>Assign department</button>
+      </form>
+      <ul className="space-y-3 lg:col-span-2">
+        {people.size ? [...people.values()].map((person) => (
+          <li key={person.user_id} className="rounded-2xl bg-white px-4 py-3 text-sm dark:bg-white/5">
+            <p className="font-semibold">{person.display_name} · {person.email}</p>
+            <ul className="mt-2 space-y-2">
+              {person.sections.map((row) => (
+                <li key={`${row.user_id}-${row.section_slug}`} className="flex flex-wrap items-center justify-between gap-3">
+                  <span><strong>{row.section_slug}</strong> · assigned {row.created_at.slice(0, 10)}</span>
+                  <form action={departmentAction}>
+                    <HiddenLocale locale={locale} />
+                    <input type="hidden" name="intent" value="revoke" />
+                    <input type="hidden" name="userId" value={row.user_id} />
+                    <input type="hidden" name="section" value={row.section_slug} />
+                    <button className={button}>Revoke</button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          </li>
+        )) : <li className="text-sm">No department assignments yet.</li>}
+      </ul>
     </div>
   );
 }

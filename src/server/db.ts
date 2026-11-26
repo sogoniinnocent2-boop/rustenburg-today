@@ -95,6 +95,58 @@ function applyMigrations(db: DatabaseSync): void {
   applyHistory(db);
   applyDesks(db);
   applyShelf(db);
+  applyDepartmentDesks(db);
+  applyDepartmentStories(db);
+  applyArticleVideo(db);
+  applyArticleReactions(db);
+}
+
+function applyDepartmentDesks(db: DatabaseSync): void {
+  const applied = new Set((db.prepare("SELECT id FROM schema_migrations").all() as Array<{ id: string }>).map((row) => row.id));
+  if (applied.has("0012_department_desks")) return;
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS department_assignments (
+      user_id TEXT NOT NULL REFERENCES users(id),
+      section_slug TEXT NOT NULL,
+      created_by TEXT NOT NULL REFERENCES users(id),
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, section_slug)
+    );
+    CREATE INDEX IF NOT EXISTS idx_department_assignments_section ON department_assignments(section_slug);
+  `);
+  db.prepare("INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)").run("0012_department_desks", new Date().toISOString());
+}
+
+function applyDepartmentStories(db: DatabaseSync): void {
+  const applied = new Set((db.prepare("SELECT id FROM schema_migrations").all() as Array<{ id: string }>).map((row) => row.id));
+  if (applied.has("0013_department_stories")) return;
+  addColumn(db, "articles", "department_slug", "TEXT");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_articles_department ON articles(department_slug, status, published_at)");
+  db.prepare("INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)").run("0013_department_stories", new Date().toISOString());
+}
+
+function applyArticleVideo(db: DatabaseSync): void {
+  const applied = new Set((db.prepare("SELECT id FROM schema_migrations").all() as Array<{ id: string }>).map((row) => row.id));
+  if (applied.has("0014_article_video")) return;
+  addColumn(db, "articles", "video_embed", "TEXT");
+  db.prepare("INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)").run("0014_article_video", new Date().toISOString());
+}
+
+function applyArticleReactions(db: DatabaseSync): void {
+  const applied = new Set((db.prepare("SELECT id FROM schema_migrations").all() as Array<{ id: string }>).map((row) => row.id));
+  if (applied.has("0015_article_reactions")) return;
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS article_reactions (
+      id TEXT PRIMARY KEY,
+      article_id TEXT NOT NULL REFERENCES articles(id),
+      user_id TEXT NOT NULL REFERENCES users(id),
+      reaction_type TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      UNIQUE (article_id, user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_article_reactions_article ON article_reactions(article_id, reaction_type);
+  `);
+  db.prepare("INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)").run("0015_article_reactions", new Date().toISOString());
 }
 
 function applyShelf(db: DatabaseSync): void {

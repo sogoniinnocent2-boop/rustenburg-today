@@ -5,6 +5,7 @@ import { sha256 } from "./crypto";
 import { all, get, newId, run, transaction } from "./db";
 import { AppError } from "./errors";
 import { ensureReady } from "./init";
+import { canPublishSection } from "./departments";
 import { requirePermission } from "./permissions";
 import { audit, indexDocument, removeIndex, track } from "./store";
 import { uniqueSlug } from "./editorial";
@@ -19,18 +20,19 @@ function cents(value: string): number {
   }
 }
 
-export function registerBusiness(user: SessionUser, input: { name: string; description: string; categorySlug?: string; locationId?: string | null; phone?: string; address?: string; website?: string }): { id: string; slug: string } {
+export function registerBusiness(user: SessionUser, input: { name: string; description: string; categorySlug?: string; locationId?: string | null; phone?: string; address?: string; website?: string }, options: { publish?: boolean } = {}): { id: string; slug: string } {
   ensureReady();
   assertActive(user);
   requirePermission(user.id, "business.create");
   if (input.name.trim().length < 2 || input.description.trim().length < 12) throw new AppError(400, "Add the business name and what it does");
   const category = input.categorySlug ? get<{ id: string }>("SELECT id FROM business_categories WHERE slug = ?", input.categorySlug) : undefined;
+  const goLive = Boolean(options.publish && canPublishSection(user, "business"));
   const id = newId();
   const slug = uniqueSlug("businesses", input.name);
   const stamp = new Date().toISOString();
   run(
     `INSERT INTO businesses (id, owner_id, name, slug, description, category_id, location_id, address, phone, website, verification_status, status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'unverified', 'pending', ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     user.id,
     input.name.trim(),
@@ -41,10 +43,13 @@ export function registerBusiness(user: SessionUser, input: { name: string; descr
     input.address || null,
     input.phone || null,
     input.website || null,
+    goLive ? "verified" : "unverified",
+    goLive ? "published" : "pending",
     stamp,
     stamp,
   );
-  audit(user.id, "business.create", "business", id);
+  if (goLive) indexDocument({ entityType: "business", entityId: slug, language: "en", title: input.name.trim(), body: input.description.trim(), publishedAt: stamp });
+  audit(user.id, goLive ? "business.publish" : "business.create", "business", id);
   return { id, slug };
 }
 

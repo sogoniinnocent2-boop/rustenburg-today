@@ -35,7 +35,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
       </nav>
       <div>
         <PageIntro locale={locale} title={user.displayName} summary={`@${user.username}`} />
-        <Notice error={query.error} notice={query.notice} />
+        <Notice error={query.error} notice={query.notice === "verified" ? "Your email is confirmed. You can use the community, tickets, property and SafeTrack." : query.notice} />
         {active === "overview" ? <Overview locale={locale} userId={user.id} roles={user.roles} verified={user.emailVerified} /> : null}
         {active === "profile" ? <form action={profileAction} className="max-w-lg space-y-3"><HiddenLocale locale={locale} />{user.avatarUrl ? <img src={user.avatarUrl} alt="" className="h-16 w-16 rounded-full object-cover" /> : null}<Field label={t(locale, "name")}><input name="displayName" defaultValue={user.displayName} className={control} /></Field><Field label={t(locale, "description")}><textarea name="biography" defaultValue={user.biography || ""} className={control} /></Field><Field label={t(locale, "language")}><select name="language" defaultValue={user.language} className={control}><option value="en">English</option><option value="tn">Setswana</option><option value="af">Afrikaans</option></select></Field><Field label="Who can see this profile"><select name="visibility" defaultValue={user.visibility} className={control}><option value="public">Public</option><option value="private">Private</option></select></Field><Field label={t(locale, "phone")}><input name="phone" defaultValue={user.phone || ""} className={control} /></Field><Field label="Profile photograph"><input name="avatar" type="file" accept="image/jpeg,image/png,image/webp,image/gif" className={control} /></Field><Field label="Messages"><select name="messagePolicy" className={control} disabled={user.isMinor}><option value="connections">People I follow who follow me</option><option value="everyone">Signed-in adults</option><option value="none">No new messages</option></select></Field><button className={button}>{t(locale, "save")}</button></form> : null}
         {active === "messages" ? <Messages locale={locale} userId={user.id} conversation={query.conversation} /> : null}
@@ -96,7 +96,14 @@ function Overview({ locale, userId, roles, verified }: { locale: string; userId:
   return (
     <div className="space-y-4">
       <p>Rustenburg Today ID · {verified ? "Email verified." : "Email not verified yet."}</p>
-      <p><Link className="font-semibold text-[#1d4e89]" href={localePath(locale, "/safetrack")}>Open SafeTrack</Link></p>
+      <div className="flex flex-wrap gap-2 text-sm">
+        <Link className="rounded-full border px-3 py-1" href={localePath(locale, "/community/new")}>Write a post</Link>
+        <Link className="rounded-full border px-3 py-1" href={localePath(locale, "/tickets")}>Tickets</Link>
+        <Link className="rounded-full border px-3 py-1" href={localePath(locale, "/property")}>Property</Link>
+        <Link className="rounded-full border px-3 py-1" href={localePath(locale, "/safetrack")}>SafeTrack</Link>
+        {roles.includes("department_editor") || roles.includes("administrator") || roles.includes("editor") ? <Link className="rounded-full border px-3 py-1" href={localePath(locale, "/desk")}>Department desk</Link> : null}
+        {roles.some((role) => ["administrator", "editor", "moderator"].includes(role)) ? <Link className="rounded-full border px-3 py-1" href={localePath(locale, "/admin")}>Admin</Link> : null}
+      </div>
       <p>{t(locale, "points")}: {pointsBalance(userId)}</p>
       <p className="text-sm">{roles.join(", ")}</p>
       <form action={roleAction} className="flex flex-wrap gap-2">

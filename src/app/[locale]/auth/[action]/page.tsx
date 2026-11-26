@@ -3,13 +3,14 @@ import { notFound } from "next/navigation";
 import { localePath, t } from "@/lib/i18n";
 import { Field, HiddenLocale, Notice, PageIntro, button, control } from "@/components/chrome";
 import { forgotAction, resetAction, signInAction, signUpAction, verifyAction } from "@/server/actions";
+import { safeReturn } from "@/lib/safe-return";
 import { appleConfigured } from "@/server/apple";
 import { facebookConfigured } from "@/server/facebook";
 import { googleConfigured } from "@/server/google";
 
 const pages = new Set(["sign-in", "sign-up", "verify", "forgot", "reset"]);
 
-export default async function AuthPage({ params, searchParams }: { params: Promise<{ locale: string; action: string }>; searchParams: Promise<{ error?: string; notice?: string; token?: string; dev?: string }> }) {
+export default async function AuthPage({ params, searchParams }: { params: Promise<{ locale: string; action: string }>; searchParams: Promise<{ error?: string; notice?: string; token?: string; dev?: string; next?: string }> }) {
   const { locale, action } = await params;
   const query = await searchParams;
   if (!pages.has(action)) notFound();
@@ -19,7 +20,7 @@ export default async function AuthPage({ params, searchParams }: { params: Promi
       <Notice error={query.error} notice={query.notice} />
       {query.dev ? <p className="mb-4 text-sm text-emerald">{t(locale, "dev.mail")}</p> : null}
       {action === "sign-in" || action === "sign-up" ? <ProviderRow locale={locale} /> : null}
-      {action === "sign-in" ? <form action={signInAction} className="mt-4 space-y-3">{common(locale)}<Field label={t(locale, "email")}><input name="email" type="email" autoComplete="username" required className={control} /></Field><Field label={t(locale, "password")}><input name="password" type="password" autoComplete="current-password" required className={control} /></Field><button className={button}>{t(locale, "signIn")}</button><p className="text-sm"><a href={localePath(locale, "/auth/forgot")}>{t(locale, "forgot")}</a></p></form> : null}
+      {action === "sign-in" ? <form action={signInAction} className="mt-4 space-y-3">{common(locale)}{safeReturn(locale, query.next || "") ? <input type="hidden" name="next" value={safeReturn(locale, query.next || "") || ""} /> : null}<Field label={t(locale, "email")}><input name="email" type="email" autoComplete="username" required className={control} /></Field><Field label={t(locale, "password")}><input name="password" type="password" autoComplete="current-password" required className={control} /></Field><button className={button}>{t(locale, "signIn")}</button><p className="text-sm"><a href={localePath(locale, "/auth/forgot")}>{t(locale, "forgot")}</a></p></form> : null}
       {action === "sign-up" ? <form action={signUpAction} className="space-y-3">{common(locale)}<Field label={t(locale, "name")}><input name="displayName" required className={control} /></Field><Field label={t(locale, "email")}><input name="email" type="email" required className={control} /></Field><Field label={t(locale, "password")}><input name="password" type="password" required className={control} /></Field><Field label={t(locale, "dob")}><input name="dateOfBirth" type="date" required className={control} /></Field><label className="flex gap-2 text-sm"><input type="checkbox" name="terms" value="yes" required />{t(locale, "consent.terms")}</label><label className="flex gap-2 text-sm"><input type="checkbox" name="guardian" value="yes" />{t(locale, "consent.guardian")}</label><button className={button}>{t(locale, "register")}</button></form> : null}
       {action === "verify" ? <form action={verifyAction} className="space-y-3">{common(locale)}<Field label="Token"><input name="token" defaultValue={query.token} required className={control} /></Field><button className={button}>{t(locale, "verify")}</button></form> : null}
       {action === "forgot" ? <form action={forgotAction} className="space-y-3">{common(locale)}<Field label={t(locale, "email")}><input name="email" type="email" required className={control} /></Field><button className={button}>{t(locale, "send")}</button></form> : null}

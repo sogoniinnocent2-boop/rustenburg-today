@@ -15,7 +15,7 @@ export default async function NewPage({ params, searchParams }: { params: Promis
   const meta = sectionBySlug(section);
   if (!meta) redirect(localePath(locale));
   const user = await currentUser();
-  if (!user) redirect(localePath(locale, "/auth/sign-in"));
+  if (!user) redirect(`${localePath(locale, "/auth/sign-in")}?next=/${section}/new`);
   const moduleKey = moduleKeyForSection(section);
   return (
     <div className="max-w-2xl">

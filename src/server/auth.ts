@@ -70,6 +70,23 @@ export function loadUser(userId: string): SessionUser | null {
   };
 }
 
+export function startSession(userId: string, meta?: { ip?: string; userAgent?: string }): string {
+  ensureReady();
+  const token = randomToken();
+  const expires = new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString();
+  run(
+    "INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at, user_agent, ip_address) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    newId(),
+    userId,
+    sha256(token),
+    expires,
+    new Date().toISOString(),
+    meta?.userAgent?.slice(0, 240) || null,
+    meta?.ip || null,
+  );
+  return signValue(token);
+}
+
 export function userFromCookie(signed: string | null | undefined): SessionUser | null {
   ensureReady();
   const token = readSignedValue(signed);

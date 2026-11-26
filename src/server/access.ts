@@ -48,6 +48,7 @@ export const PERMISSIONS: Array<[string, string]> = [
   ["safetrack.review", "Review emergency access requests"],
   ["safetrack.incidents", "Manage assigned safety incidents"],
   ["safetrack.privacy", "Handle SafeTrack privacy requests"],
+  ["departments.publish", "Publish for an assigned department desk"],
 ];
 
 type RoleDef = { description: string; selfServe: boolean; permissions: string[] };
@@ -102,8 +103,30 @@ export const ROLES: Record<string, RoleDef> = {
   emergency_reviewer: { description: "Reviews emergency disclosures", selfServe: false, permissions: ["safetrack.review", "admin.access"] },
   incident_officer: { description: "Assigned safety incidents", selfServe: false, permissions: ["safetrack.incidents", "admin.access"] },
   privacy_officer: { description: "SafeTrack privacy requests", selfServe: false, permissions: ["safetrack.privacy", "admin.access"] },
+  department_editor: {
+    description: "Publishes only on assigned department pages",
+    selfServe: false,
+    permissions: [
+      "departments.publish",
+      "articles.create",
+      "jobs.create",
+      "events.create",
+      "courses.create",
+      "business.create",
+      "marketplace.sell",
+      "directory.create",
+      "media.create",
+      "community.post",
+      "notices.create",
+      "campaigns.create",
+      "talent.create",
+      "advertising.create",
+    ],
+  },
 };
 
 export const DEFAULT_ROLE_NAMES = ["resident", "reader", "contributor", "buyer", "job_seeker", "student", "ticket_buyer"];
 
-export const REQUEST_ONLY_ROLES = Object.keys(ROLES).filter((name) => name !== "administrator" && !DEFAULT_ROLE_NAMES.includes(name));
+export const REQUEST_ONLY_ROLES = Object.keys(ROLES).filter(
+  (name) => name !== "administrator" && name !== "department_editor" && !DEFAULT_ROLE_NAMES.includes(name),
+);

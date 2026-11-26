@@ -54,7 +54,7 @@ export function PrimaryNav({ locale, trackerHref }: { locale: Locale; trackerHre
         ))}
       </div>
       <div className="nav-actions">
-      <Link className="tracker-chip" href={trackerHref}><span className="pulse-lamp is-live" aria-hidden="true" />Tracker</Link>
+      <Link className="tracker-chip" href={trackerHref}>SafeTrack</Link>
       {actionNav.map(([href, label]) => (
         <Link key={href} className={`nav-pill bar-action bar-action-${label.toLowerCase()}`} href={localePath(locale, href)} aria-current={isCurrent(rest, href) ? "page" : undefined}>{label}</Link>
       ))}

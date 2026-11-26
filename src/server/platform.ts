@@ -155,7 +155,7 @@ export function joinGroup(user: SessionUser, groupId: string): void {
   run("INSERT OR IGNORE INTO group_members (group_id, user_id, created_at) VALUES (?, ?, ?)", groupId, user.id, new Date().toISOString());
 }
 
-export function createTicketOrder(user: SessionUser, ticketId: string, quantity: number): { id: string; amountCents: number } {
+export function createTicketOrder(user: SessionUser, ticketId: string, quantity: number): { id: string; amountCents: number; codes: string[] } {
   ensureReady();
   assertActive(user);
   requirePermission(user.id, "tickets.buy");
@@ -170,6 +170,8 @@ export function createTicketOrder(user: SessionUser, ticketId: string, quantity:
   if (!ticket) throw new AppError(404, "Ticket not found");
   const id = newId();
   const amount = ticket.price_cents * qty;
+  const free = amount === 0;
+  const codes: string[] = [];
   transaction(() => {
     if (ticket.capacity > 0) {
       const changed = run("UPDATE event_tickets SET reserved_count = reserved_count + ? WHERE id = ? AND reserved_count + ? <= capacity", qty, ticket.id, qty);
@@ -178,18 +180,27 @@ export function createTicketOrder(user: SessionUser, ticketId: string, quantity:
       run("UPDATE event_tickets SET reserved_count = reserved_count + ? WHERE id = ?", qty, ticket.id);
     }
     run(
-      "INSERT INTO ticket_orders (id, user_id, event_id, ticket_id, quantity, amount_cents, payment_status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'unpaid', ?)",
+      "INSERT INTO ticket_orders (id, user_id, event_id, ticket_id, quantity, amount_cents, payment_status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
       id,
       user.id,
       ticket.event_id,
       ticket.id,
       qty,
       amount,
+      free ? "free" : "unpaid",
       new Date().toISOString(),
     );
+    if (free) {
+      for (let index = 0; index < qty; index += 1) {
+        const code = randomToken(12);
+        codes.push(code);
+        run("INSERT INTO issued_tickets (id, order_id, user_id, code, status) VALUES (?, ?, ?, ?, 'issued')", newId(), id, user.id, code);
+      }
+    }
   });
-  audit(user.id, "ticket.order", "ticket_order", id);
-  return { id, amountCents: amount };
+  if (free) audit(user.id, "ticket.order", "ticket_order", id, { free: true });
+  else audit(user.id, "ticket.order", "ticket_order", id);
+  return { id, amountCents: amount, codes };
 }
 
 export function issueTicketCodes(orderId: string): string[] {

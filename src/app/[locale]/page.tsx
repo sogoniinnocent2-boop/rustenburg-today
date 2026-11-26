@@ -182,7 +182,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   );
 }
 
-const shortcuts = [["/news", "News"], ["/jobs", "Jobs"], ["/tickets", "Tickets"], ["/events", "Events"], ["/business", "Business"]] as const;
+const shortcuts = [["/auth/sign-up", "Create account"], ["/community", "Community"], ["/tickets", "Tickets"], ["/property", "Property"], ["/safetrack", "SafeTrack"], ["/news", "News"], ["/jobs", "Jobs"]] as const;
 
 const explore: Array<[string, string, string, string]> = [
   ["/news", "News", "Official headlines, one click from the original.", "news"],

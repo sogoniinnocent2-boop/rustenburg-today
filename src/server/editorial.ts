@@ -1,9 +1,12 @@
+import { ARTICLE_REACTIONS, isArticleReaction, type ArticleReactionId } from "@/lib/reactions";
 import { containsSensitiveIdentity, readingMinutes, safeExternalUrl, slugify } from "@/lib/text";
 import type { SessionUser } from "./auth";
 import { assertActive } from "./auth";
 import { all, get, newId, run, transaction } from "./db";
 import { AppError } from "./errors";
 import { ensureReady } from "./init";
+import { embedVideo } from "./community";
+import { canPublishSection } from "./departments";
 import { requirePermission } from "./permissions";
 import { audit, indexDocument, rateLimit, removeIndex, track } from "./store";
 import { fanout } from "./alerts";
@@ -40,7 +43,7 @@ function categoryId(slug: string): string {
   return row.id;
 }
 
-export function createArticle(user: SessionUser, input: { categorySlug: string; language: string; title: string; excerpt: string; body: string; tags?: string; sourceName?: string; sourceUrl?: string; featured?: boolean; scheduledFor?: string | null; imageUrl?: string | null }): { id: string; slug: string } {
+export function createArticle(user: SessionUser, input: { categorySlug: string; language: string; title: string; excerpt: string; body: string; tags?: string; sourceName?: string; sourceUrl?: string; featured?: boolean; scheduledFor?: string | null; imageUrl?: string | null; departmentSlug?: string | null; videoUrl?: string | null }): { id: string; slug: string } {
   ensureReady();
   assertActive(user);
   requirePermission(user.id, "articles.create");
@@ -50,10 +53,13 @@ export function createArticle(user: SessionUser, input: { categorySlug: string; 
   const id = newId();
   const slug = uniqueSlug("articles", copy.title);
   const stamp = new Date().toISOString();
+  const departmentSlug = input.departmentSlug?.trim().toLowerCase() || null;
+  const videoEmbedUrl = input.videoUrl?.trim() ? embedVideo(input.videoUrl.trim()) : null;
+  if (input.videoUrl?.trim() && !videoEmbedUrl) throw new AppError(400, "Use an https YouTube or Vimeo link for the video");
   transaction(() => {
     run(
-      `INSERT INTO articles (id, author_id, category_id, slug, status, editorial_review_status, featured_image, is_featured, reading_minutes, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 'draft', 'unreviewed', ?, ?, ?, ?, ?)`,
+      `INSERT INTO articles (id, author_id, category_id, slug, status, editorial_review_status, featured_image, is_featured, reading_minutes, department_slug, video_embed, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 'draft', 'unreviewed', ?, ?, ?, ?, ?, ?, ?)`,
       id,
       user.id,
       categoryId(input.categorySlug),
@@ -61,6 +67,8 @@ export function createArticle(user: SessionUser, input: { categorySlug: string; 
       input.imageUrl || null,
       input.featured ? 1 : 0,
       readingMinutes(copy.body),
+      departmentSlug,
+      videoEmbedUrl,
       stamp,
       stamp,
     );
@@ -85,6 +93,121 @@ export function createArticle(user: SessionUser, input: { categorySlug: string; 
   });
   audit(user.id, "article.create", "article", id);
   return { id, slug };
+}
+
+function deskCategory(section: string, requested?: string): string {
+  if (requested && get("SELECT id FROM article_categories WHERE slug = ?", requested)) return requested;
+  const map: Record<string, string> = {
+    news: "local-news",
+    community: "community",
+    business: "business-mining",
+    events: "announcements",
+    sports: "sports",
+    health: "health",
+    learn: "education",
+    jobs: "announcements",
+    transport: "traffic",
+    voice: "politics",
+    notices: "announcements",
+  };
+  const mapped = map[section] || "local-news";
+  return get("SELECT id FROM article_categories WHERE slug = ?", mapped) ? mapped : "local-news";
+}
+
+export function publishDeskArticle(
+  user: SessionUser,
+  input: { categorySlug: string; language: string; title: string; excerpt: string; body: string; tags?: string; sourceName?: string; sourceUrl?: string; imageUrl?: string | null; departmentSlug?: string; videoUrl?: string | null },
+): { id: string; slug: string } {
+  return publishDeskStory(user, {
+    section: input.departmentSlug || "news",
+    language: input.language,
+    headline: input.title,
+    summary: input.excerpt,
+    body: input.body,
+    categorySlug: input.categorySlug,
+    tags: input.tags,
+    sourceName: input.sourceName,
+    sourceUrl: input.sourceUrl,
+    imageUrl: input.imageUrl,
+    videoUrl: input.videoUrl,
+  });
+}
+
+export function publishDeskStory(
+  user: SessionUser,
+  input: {
+    section: string;
+    language: string;
+    headline: string;
+    summary: string;
+    body: string;
+    categorySlug?: string;
+    tags?: string;
+    sourceName?: string;
+    sourceUrl?: string;
+    imageUrl?: string | null;
+    videoUrl?: string | null;
+  },
+): { id: string; slug: string } {
+  ensureReady();
+  assertActive(user);
+  const section = input.section.trim().toLowerCase();
+  if (!canPublishSection(user, section)) throw new AppError(403, "You are not assigned to this department");
+  if (!input.imageUrl) throw new AppError(400, "Add a picture for this story update");
+  const created = createArticle(user, {
+    categorySlug: deskCategory(section, input.categorySlug),
+    language: input.language,
+    title: input.headline,
+    excerpt: input.summary,
+    body: input.body,
+    tags: input.tags,
+    sourceName: input.sourceName,
+    sourceUrl: input.sourceUrl,
+    imageUrl: input.imageUrl,
+    videoUrl: input.videoUrl,
+    departmentSlug: section,
+  });
+  const stamp = new Date().toISOString();
+  publishRecord(created.id, stamp);
+  run("INSERT INTO article_revisions (id, article_id, editor_id, revision_type, revision_content, note, created_at) VALUES (?, ?, ?, 'publish', 'desk', ?, ?)", newId(), created.id, user.id, `Published from the ${section} desk`, stamp);
+  audit(user.id, "article.desk_publish", "article", created.id, { section });
+  return created;
+}
+
+export function listDepartmentStories(section: string, locale: string, limit = 12): ArticleCard[] {
+  ensureReady();
+  const rows = all<ArticleCard & { en_title: string | null; tr_title: string | null; en_excerpt: string | null; tr_excerpt: string | null }>(
+    `SELECT a.id, a.slug, a.published_at as publishedAt, a.reading_minutes as readingMinutes, a.is_featured as featured, a.featured_image as image, a.video_embed as video, a.is_demo as demo,
+            c.name as category, c.slug as categorySlug, p.display_name as author,
+            tr.title as tr_title, tr.excerpt as tr_excerpt, en.title as en_title, en.excerpt as en_excerpt
+     FROM articles a
+     JOIN article_categories c ON c.id = a.category_id
+     JOIN profiles p ON p.user_id = a.author_id
+     LEFT JOIN article_translations tr ON tr.article_id = a.id AND tr.language_code = ? AND tr.review_status = 'approved'
+     LEFT JOIN article_translations en ON en.article_id = a.id AND en.language_code = 'en' AND en.review_status = 'approved'
+     WHERE a.status = 'published' AND a.deleted_at IS NULL AND a.department_slug = ? AND (tr.id IS NOT NULL OR en.id IS NOT NULL)
+     ORDER BY a.published_at DESC LIMIT ?`,
+    locale,
+    section,
+    Math.min(limit, 24),
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    slug: row.slug,
+    title: row.tr_title || row.en_title || "",
+    excerpt: row.tr_excerpt || row.en_excerpt || "",
+    language: row.tr_title ? locale : "en",
+    fallback: !row.tr_title && locale !== "en",
+    category: row.category,
+    categorySlug: row.categorySlug,
+    author: row.author,
+    publishedAt: row.publishedAt,
+    readingMinutes: Number(row.readingMinutes),
+    featured: Boolean(row.featured),
+    image: row.image,
+    video: row.video || null,
+    demo: Boolean(row.demo),
+  }));
 }
 
 function saveTags(articleId: string, raw: string): void {
@@ -165,9 +288,12 @@ export function submitArticle(user: SessionUser, id: string): void {
 export function reviewArticle(user: SessionUser, id: string, decision: "approve" | "changes" | "publish" | "remove" | "schedule", note?: string, scheduledFor?: string | null): void {
   ensureReady();
   assertActive(user);
-  requirePermission(user.id, decision === "changes" || decision === "approve" ? "articles.review" : "articles.publish");
-  const article = get<{ id: string; slug: string; category_id: string; status: string }>("SELECT id, slug, category_id, status FROM articles WHERE id = ? AND deleted_at IS NULL", id);
+  const article = get<{ id: string; slug: string; category_id: string; status: string; author_id: string }>("SELECT id, slug, category_id, status, author_id FROM articles WHERE id = ? AND deleted_at IS NULL", id);
   if (!article) throw new AppError(404, "Article not found");
+  const deskPublish = decision === "publish" && canPublishSection(user, "news") && article.author_id === user.id;
+  if (!deskPublish) {
+    requirePermission(user.id, decision === "changes" || decision === "approve" ? "articles.review" : "articles.publish");
+  }
   const stamp = new Date().toISOString();
   if (decision === "changes") {
     run("UPDATE articles SET status = 'changes_requested', editorial_review_status = 'rejected', updated_at = ? WHERE id = ?", stamp, id);
@@ -324,6 +450,7 @@ export type ArticleCard = {
   readingMinutes: number;
   featured: boolean;
   image: string | null;
+  video: string | null;
   demo: boolean;
 };
 
@@ -340,7 +467,7 @@ export function listArticles(options: { locale: string; category?: string; page?
   if (options.featured) where.push("a.is_featured = 1");
   const total = get<{ count: number }>(`SELECT COUNT(*) as count FROM articles a JOIN article_categories c ON c.id = a.category_id WHERE ${where.join(" AND ")}`, ...params)?.count ?? 0;
   const rows = all<ArticleCard & { en_title: string | null; tr_title: string | null; en_excerpt: string | null; tr_excerpt: string | null }>(
-    `SELECT a.id, a.slug, a.published_at as publishedAt, a.reading_minutes as readingMinutes, a.is_featured as featured, a.featured_image as image, a.is_demo as demo,
+    `SELECT a.id, a.slug, a.published_at as publishedAt, a.reading_minutes as readingMinutes, a.is_featured as featured, a.featured_image as image, a.video_embed as video, a.is_demo as demo,
             c.name as category, c.slug as categorySlug, p.display_name as author,
             tr.title as tr_title, tr.excerpt as tr_excerpt, en.title as en_title, en.excerpt as en_excerpt
      FROM articles a
@@ -372,6 +499,7 @@ export function listArticles(options: { locale: string; category?: string; page?
       readingMinutes: Number(row.readingMinutes),
       featured: Boolean(row.featured),
       image: row.image,
+      video: row.video || null,
       demo: Boolean(row.demo),
     })),
   };
@@ -380,10 +508,10 @@ export function listArticles(options: { locale: string; category?: string; page?
 export function getArticle(slug: string, locale: string): (ArticleCard & { body: string; sources: Array<{ source_name: string; source_url: string | null }>; corrections: Array<{ note: string | null; created_at: string }>; tags: string[] }) | null {
   ensureReady();
   const row = get<{
-    id: string; slug: string; published_at: string | null; reading_minutes: number; is_featured: number; featured_image: string | null; is_demo: number;
+    id: string; slug: string; published_at: string | null; reading_minutes: number; is_featured: number; featured_image: string | null; video_embed: string | null; is_demo: number;
     category: string; categorySlug: string; author: string; tr_title: string | null; tr_excerpt: string | null; tr_body: string | null; en_title: string | null; en_excerpt: string | null; en_body: string | null;
   }>(
-    `SELECT a.id, a.slug, a.published_at, a.reading_minutes, a.is_featured, a.featured_image, a.is_demo,
+    `SELECT a.id, a.slug, a.published_at, a.reading_minutes, a.is_featured, a.featured_image, a.video_embed, a.is_demo,
             c.name as category, c.slug as categorySlug, p.display_name as author,
             tr.title as tr_title, tr.excerpt as tr_excerpt, tr.body as tr_body,
             en.title as en_title, en.excerpt as en_excerpt, en.body as en_body
@@ -409,6 +537,7 @@ export function getArticle(slug: string, locale: string): (ArticleCard & { body:
     categorySlug: row.categorySlug,
     author: row.author,
     publishedAt: row.published_at,
+    video: row.video_embed,
     readingMinutes: row.reading_minutes,
     featured: row.is_featured === 1,
     image: row.featured_image,
@@ -425,6 +554,64 @@ export function rememberView(slug: string, userId: string | null): void {
   if (!article) return;
   run("UPDATE articles SET view_count = view_count + 1 WHERE id = ?", article.id);
   track("article.view", "article", article.id, userId);
+}
+
+export { ARTICLE_REACTIONS, type ArticleReactionId } from "@/lib/reactions";
+
+export function reactToArticle(user: SessionUser, articleId: string, reaction: string): ArticleReactionId | null {
+  ensureReady();
+  assertActive(user);
+  const kind = isArticleReaction(reaction) ? reaction : "like";
+  if (!get("SELECT id FROM articles WHERE id = ? AND status = 'published' AND deleted_at IS NULL", articleId)) {
+    throw new AppError(404, "Article not found");
+  }
+  const existing = get<{ id: string; reaction_type: string }>(
+    "SELECT id, reaction_type FROM article_reactions WHERE article_id = ? AND user_id = ?",
+    articleId,
+    user.id,
+  );
+  if (existing && existing.reaction_type === kind) {
+    run("DELETE FROM article_reactions WHERE id = ?", existing.id);
+    audit(user.id, "article.unreact", "article", articleId, { reaction: kind });
+    return null;
+  }
+  if (existing) {
+    run("UPDATE article_reactions SET reaction_type = ?, created_at = ? WHERE id = ?", kind, new Date().toISOString(), existing.id);
+  } else {
+    run(
+      "INSERT INTO article_reactions (id, article_id, user_id, reaction_type, created_at) VALUES (?, ?, ?, ?, ?)",
+      newId(),
+      articleId,
+      user.id,
+      kind,
+      new Date().toISOString(),
+    );
+  }
+  audit(user.id, "article.react", "article", articleId, { reaction: kind });
+  return kind;
+}
+
+export function articleReactions(articleId: string, viewerId?: string | null): {
+  mine: ArticleReactionId | "";
+  total: number;
+  counts: Record<ArticleReactionId, number>;
+} {
+  ensureReady();
+  const counts = Object.fromEntries(ARTICLE_REACTIONS.map((item) => [item.id, 0])) as Record<ArticleReactionId, number>;
+  for (const row of all<{ reaction_type: string; total: number }>(
+    "SELECT reaction_type, COUNT(*) as total FROM article_reactions WHERE article_id = ? GROUP BY reaction_type",
+    articleId,
+  )) {
+    if (row.reaction_type in counts) counts[row.reaction_type as ArticleReactionId] = Number(row.total);
+  }
+  const mine = viewerId
+    ? get<{ reaction_type: string }>("SELECT reaction_type FROM article_reactions WHERE article_id = ? AND user_id = ?", articleId, viewerId)?.reaction_type || ""
+    : "";
+  return {
+    mine: isArticleReaction(mine) ? mine : "",
+    total: Object.values(counts).reduce((sum, value) => sum + value, 0),
+    counts,
+  };
 }
 
 export function addArticleComment(user: SessionUser, articleId: string, body: string, parentId?: string | null): void {

@@ -7,13 +7,15 @@ import { backupAction, moderateAction, reviewNewsAction } from "@/server/actions
 import { CityAdmin, adminDeskLinks, adminTabs } from "@/components/city-admin";
 import { modules } from "@/server/city";
 
+export const metadata = { robots: { index: false, follow: false } };
+
 export default async function AdminPage({ params, searchParams }: { params: Promise<{ locale: string; tab?: string[] }>; searchParams: Promise<{ error?: string; notice?: string }> }) {
   const { locale, tab } = await params;
   const query = await searchParams;
   const active = tab?.[0] || "dashboard";
   if (!adminTabs.includes(active)) notFound();
   const user = await currentUser();
-  if (!user) redirect(localePath(locale, "/auth/sign-in"));
+  if (!user) redirect(localePath(locale, "/auth/sign-in?next=/admin"));
   if (!user.roles.some((role) => ["administrator", "editor", "moderator"].includes(role))) {
     return <p role="alert" className="rounded-2xl bg-white p-6 dark:bg-white/5">This desk is limited to editors, moderators and administrators.</p>;
   }

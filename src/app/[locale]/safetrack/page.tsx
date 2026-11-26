@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { localePath } from "@/lib/i18n";
 import { safeTrackAction } from "@/server/actions";
 import { currentUser } from "@/server/session";
@@ -12,7 +11,22 @@ export default async function SafeTrackPage({ params, searchParams }: { params: 
   const { locale } = await params;
   const query = await searchParams;
   const user = await currentUser();
-  if (!user) redirect(`/${locale}/auth/sign-in?next=/safetrack`);
+  if (!user) {
+    return (
+      <div className="mx-auto grid max-w-5xl gap-6 px-4 py-8">
+        <header className="glass-card grid gap-2 p-6">
+          <p className="text-sm font-semibold text-[#1d4e89]">SafeTrack</p>
+          <h1 className="text-3xl font-semibold text-graphite dark:text-cloud">Your family. Your safety. Your peace of mind.</h1>
+          <p>SafeTrack helps a household prepare, share a position only with people you choose, and organise an emergency. It does not call the police, track anyone in secret, or replace 10111.</p>
+        </header>
+        <p className="glass-card p-6">Sign in to open a household, record an incident, and send an SOS only to contacts who already have permission. Nothing is tracked until you are signed in and you choose to share a position.</p>
+        <p className="flex flex-wrap gap-3">
+          <Link className="rounded-full bg-[#101827] px-4 py-2 font-semibold text-white" href={localePath(locale, "/auth/sign-in?next=/safetrack")}>Sign in to SafeTrack</Link>
+          <Link className="rounded-full border px-4 py-2 font-semibold" href={localePath(locale, "/auth/sign-up")}>Create account</Link>
+        </p>
+      </div>
+    );
+  }
   const safety = mySafety(user);
   const birthMissing = !get("SELECT date_of_birth FROM profiles WHERE user_id = ? AND date_of_birth IS NOT NULL", user.id);
   const staff = user.roles.some((role) => ["administrator", "verification_officer", "emergency_reviewer", "incident_officer", "privacy_officer"].includes(role));

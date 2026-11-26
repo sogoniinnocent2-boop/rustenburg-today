@@ -6,7 +6,8 @@ import { all, get, newId, run } from "./db";
 import { AppError } from "./errors";
 import { ensureReady } from "./init";
 import { rejectRecruitmentFee } from "./citydesk";
-import { requirePermission } from "./permissions";
+import { canPublishSection, sectionForModule } from "./departments";
+import { hasPermission, requirePermission } from "./permissions";
 import { audit, indexDocument, locationBySlug, removeIndex } from "./store";
 import { uniqueSlug } from "./editorial";
 
@@ -80,7 +81,7 @@ function valueFor(field: Field, raw: string | undefined): string | number | null
   return value.slice(0, field.type === "textarea" ? 5000 : 180);
 }
 
-export function createRecord(user: SessionUser, key: string, input: Record<string, string>): string {
+export function createRecord(user: SessionUser, key: string, input: Record<string, string>, options: { publish?: boolean } = {}): string {
   ensureReady();
   assertActive(user);
   const spec = moduleByKey(key);
@@ -88,10 +89,12 @@ export function createRecord(user: SessionUser, key: string, input: Record<strin
   if (spec.consent && ["funeral", "missing_person"].includes(input.notice_type || "") && input.consent !== "yes") {
     throw new AppError(400, "This notice needs explicit consent before it can be submitted");
   }
+  const section = sectionForModule(key);
+  const goLive = Boolean(options.publish && section && canPublishSection(user, section));
   const columns = ["id", spec.owner, "status", "created_at", "updated_at"];
   const stamp = new Date().toISOString();
   const id = newId();
-  const values: Array<string | number | null> = [id, user.id, "pending", stamp, stamp];
+  const values: Array<string | number | null> = [id, user.id, goLive ? "published" : "pending", stamp, stamp];
   for (const field of spec.fields) {
     const value = valueFor(field, input[field.column] ?? input[field.column.replace("_cents", "")]);
     if (value === null && !field.required) continue;
@@ -107,17 +110,30 @@ export function createRecord(user: SessionUser, key: string, input: Record<strin
     values.push(input.consent === "yes" ? 1 : 0);
   }
   run(`INSERT INTO ${spec.table} (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")})`, ...values);
-  audit(user.id, `${key}.create`, key, id);
+  if (goLive) {
+    if (spec.table === "health_providers") run("UPDATE health_providers SET review_status = 'approved' WHERE id = ?", id);
+    if (spec.table === "traffic_reports" || spec.table === "civic_reports") run(`UPDATE ${spec.table} SET verification_status = 'verified' WHERE id = ?`, id);
+    const title = String(input[spec.title] || input.title || input.name || "Listing");
+    const body = String(input.description || title);
+    indexDocument({ entityType: spec.search, entityId: id, language: "en", title, body, publishedAt: stamp });
+  }
+  audit(user.id, goLive ? `${key}.publish` : `${key}.create`, key, id);
   return id;
 }
 
 export function publishRecord(user: SessionUser, key: string, id: string): void {
   ensureReady();
   assertActive(user);
-  requirePermission(user.id, "directory.moderate");
+  const section = sectionForModule(key);
+  if (!hasPermission(user.id, "directory.moderate") && !(section && canPublishSection(user, section))) {
+    throw new AppError(403, "You do not have permission to do that");
+  }
   const spec = moduleByKey(key);
   const row = get<Record<string, unknown>>(`SELECT * FROM ${spec.table} WHERE id = ?`, id);
   if (!row) throw new AppError(404, "Record not found");
+  if (section && canPublishSection(user, section) && !hasPermission(user.id, "directory.moderate") && String(row[spec.owner]) !== user.id) {
+    throw new AppError(403, "You can only publish your own department records");
+  }
   const stamp = new Date().toISOString();
   if (spec.table === "health_providers") run("UPDATE health_providers SET status = 'published', review_status = 'approved', updated_at = ? WHERE id = ?", stamp, id);
   else if (spec.table === "traffic_reports") run("UPDATE traffic_reports SET status = 'published', verification_status = 'verified', updated_at = ? WHERE id = ?", stamp, id);
@@ -404,23 +420,30 @@ export function saveDeal(user: SessionUser, dealId: string): void {
   else run("INSERT INTO saved_deals (user_id, deal_id, created_at) VALUES (?, ?, ?)", user.id, dealId, new Date().toISOString());
 }
 
-export function createJob(user: SessionUser, input: { title: string; description: string; jobType: string; locationId?: string | null; closing?: string; applicationFee?: number | null }): string {
+export function createJob(user: SessionUser, input: { title: string; description: string; jobType: string; locationId?: string | null; closing?: string; applicationFee?: number | null }, options: { publish?: boolean } = {}): string {
   ensureReady();
   assertActive(user);
   requirePermission(user.id, "jobs.create");
   rejectRecruitmentFee(input.applicationFee);
+  const goLive = Boolean(options.publish && canPublishSection(user, "jobs"));
   const id = newId();
   const stamp = new Date().toISOString();
-  run("INSERT INTO jobs (id, employer_id, title, description, job_type, location_id, closing_date, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)", id, user.id, input.title.trim(), input.description.trim(), input.jobType, input.locationId || null, input.closing || null, stamp, stamp);
+  run("INSERT INTO jobs (id, employer_id, title, description, job_type, location_id, closing_date, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", id, user.id, input.title.trim(), input.description.trim(), input.jobType, input.locationId || null, input.closing || null, goLive ? "published" : "pending", stamp, stamp);
+  if (goLive) {
+    indexDocument({ entityType: "job", entityId: id, language: "en", title: input.title.trim(), body: input.description.trim(), publishedAt: stamp });
+    fanout("jobs", input.title.trim(), input.description.trim().slice(0, 180), `/jobs/${id}`, input.locationId || null);
+  }
   return id;
 }
 
 export function publishJob(user: SessionUser, id: string): void {
   ensureReady();
   assertActive(user);
-  requirePermission(user.id, "jobs.manage");
-  const job = get<{ title: string; description: string; location_id: string | null }>("SELECT title, description, location_id FROM jobs WHERE id = ?", id);
+  const job = get<{ title: string; description: string; location_id: string | null; employer_id: string }>("SELECT title, description, location_id, employer_id FROM jobs WHERE id = ?", id);
   if (!job) throw new AppError(404, "Job not found");
+  if (!hasPermission(user.id, "jobs.manage") && !(canPublishSection(user, "jobs") && job.employer_id === user.id)) {
+    throw new AppError(403, "You do not have permission to do that");
+  }
   run("UPDATE jobs SET status = 'published', updated_at = ? WHERE id = ?", new Date().toISOString(), id);
   indexDocument({ entityType: "job", entityId: id, language: "en", title: job.title, body: job.description, publishedAt: new Date().toISOString() });
   fanout("jobs", job.title, job.description.slice(0, 180), `/jobs/${id}`, job.location_id);
@@ -592,23 +615,30 @@ export function publicQuiz(assessmentId: string): Array<{ id: string; prompt: st
   return all<{ id: string; prompt: string; options_json: string }>("SELECT id, prompt, options_json FROM assessment_questions WHERE assessment_id = ? ORDER BY position", assessmentId).map((row) => ({ id: row.id, prompt: row.prompt, options: JSON.parse(row.options_json) as string[] }));
 }
 
-export function createEvent(user: SessionUser, input: { title: string; description: string; category: string; start: string; venue?: string; locationId?: string | null }): { id: string; slug: string } {
+export function createEvent(user: SessionUser, input: { title: string; description: string; category: string; start: string; venue?: string; locationId?: string | null }, options: { publish?: boolean } = {}): { id: string; slug: string } {
   ensureReady();
   assertActive(user);
   requirePermission(user.id, "events.create");
+  const goLive = Boolean(options.publish && canPublishSection(user, "events"));
   const id = newId();
   const slug = uniqueSlug("events", input.title);
   const stamp = new Date().toISOString();
-  run("INSERT INTO events (id, organiser_id, title, slug, description, category, location_id, venue, start_at, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)", id, user.id, input.title.trim(), slug, input.description.trim(), input.category, input.locationId || null, input.venue || null, input.start, stamp, stamp);
+  run("INSERT INTO events (id, organiser_id, title, slug, description, category, location_id, venue, start_at, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", id, user.id, input.title.trim(), slug, input.description.trim(), input.category, input.locationId || null, input.venue || null, input.start, goLive ? "published" : "pending", stamp, stamp);
+  if (goLive) {
+    indexDocument({ entityType: "event", entityId: slug, language: "en", title: input.title.trim(), body: input.description.trim(), publishedAt: input.start });
+    fanout("events", input.title.trim(), input.description.trim().slice(0, 180), `/events/${slug}`, input.locationId || null);
+  }
   return { id, slug };
 }
 
 export function publishEvent(user: SessionUser, id: string): void {
   ensureReady();
   assertActive(user);
-  requirePermission(user.id, "events.manage");
-  const event = get<{ title: string; description: string; slug: string; location_id: string | null; start_at: string }>("SELECT title, description, slug, location_id, start_at FROM events WHERE id = ?", id);
+  const event = get<{ title: string; description: string; slug: string; location_id: string | null; start_at: string; organiser_id: string }>("SELECT title, description, slug, location_id, start_at, organiser_id FROM events WHERE id = ?", id);
   if (!event) throw new AppError(404, "Event not found");
+  if (!hasPermission(user.id, "events.manage") && !(canPublishSection(user, "events") && event.organiser_id === user.id)) {
+    throw new AppError(403, "You do not have permission to do that");
+  }
   run("UPDATE events SET status = 'published', updated_at = ? WHERE id = ?", new Date().toISOString(), id);
   indexDocument({ entityType: "event", entityId: event.slug, language: "en", title: event.title, body: event.description, publishedAt: event.start_at });
   fanout("events", event.title, event.description.slice(0, 180), `/events/${event.slug}`, event.location_id);

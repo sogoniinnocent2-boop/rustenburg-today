@@ -16,11 +16,19 @@ You can add a seller, employer, business, advertiser, creator, podcaster, instru
 
 News and podcasts that are published appear on the home page. Empty departments say nothing is published yet. That is intentional.
 
+On a news or department story page you can react the way people do on Facebook: Like, Love, Care, Haha, Wow, Sad or Angry. Sign in first. Choosing the same reaction again removes it.
+
 Community posts can be an update, discussion, poll, safety report or lost-and-found note. Safety reports stay pending for review. Do not post an identity number, private address or an allegation you cannot support.
+
+## Department desk
+
+If an administrator assigns you to a department, open **Department desk** from your account, or go to `/en/desk`. One account can hold several departments; switch tabs on the desk for each one. Publish only for the pages you are assigned to. Those updates appear on the matching public section. News desk stories sit beside SAnews headline links; they do not replace the official feed.
+
+The desk shows a story report with views and Facebook-style reaction totals for that department. Download CSV exports the same numbers for Excel or Sheets.
 
 ## Work, learning and trade
 
-Jobs, courses, events, businesses, adverts and classifieds are created from the department’s Create link. Most stay hidden until the desk approves them. An order is a record of what you asked to buy. It stays unpaid until a payment provider confirms it on the server. There is no live checkout yet.
+Jobs, courses, events, businesses, adverts and classifieds are created from the department’s Create link. Most stay hidden until the desk approves them, unless you publish from an assigned department desk. An order is a record of what you asked to buy. It stays unpaid until a payment provider confirms it on the server. There is no live checkout yet.
 
 Course completion certificates from this site are records of finishing the lessons here. They are not a formal qualification.
 

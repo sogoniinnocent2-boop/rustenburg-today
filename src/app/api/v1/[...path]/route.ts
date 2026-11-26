@@ -6,6 +6,7 @@ import { userFromCookie } from "@/server/auth";
 import { listNotifications } from "@/server/alerts";
 import { briefingRss } from "@/server/engage";
 import { eligiblePopup, markPopupShown, recordAdEvent } from "@/server/commerce";
+import { deskStoryReportCsv } from "@/server/departments";
 import { ensureReady } from "@/server/init";
 import { applyPaymentWebhook } from "@/server/payments";
 import { searchPlatform, searchSuggest } from "@/server/search";
@@ -123,6 +124,26 @@ export async function GET(request: Request, context: { params: Promise<{ path: s
     const user = userFromCookie(cookieOf(request));
     if (!user) return fail("Sign in required", 401);
     return json(listNotifications(user.id));
+  }
+  if (key === "desk/report") {
+    const user = userFromCookie(cookieOf(request));
+    if (!user) return fail("Sign in required", 401);
+    const section = (url.searchParams.get("section") || "").trim().toLowerCase();
+    if (!section) return fail("Choose a department", 400);
+    try {
+      const csv = deskStoryReportCsv(user, section);
+      const stamp = new Date().toISOString().slice(0, 10);
+      return new NextResponse(csv, {
+        headers: {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": `attachment; filename="desk-${section}-story-report-${stamp}.csv"`,
+          "Cache-Control": "no-store",
+        },
+      });
+    } catch (error) {
+      const status = error instanceof AppError ? error.status : 400;
+      return fail(error instanceof Error ? error.message : "Report unavailable", status);
+    }
   }
   if (path[0] === "media" && path[1]) {
     const file = readUpload(path[1]);
