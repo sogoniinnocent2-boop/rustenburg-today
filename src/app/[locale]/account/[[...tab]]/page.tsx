@@ -101,7 +101,7 @@ function Overview({ locale, userId, roles, verified }: { locale: string; userId:
         <Link className="rounded-full border px-3 py-1" href={localePath(locale, "/tickets")}>Tickets</Link>
         <Link className="rounded-full border px-3 py-1" href={localePath(locale, "/property")}>Property</Link>
         <Link className="rounded-full border px-3 py-1" href={localePath(locale, "/safetrack")}>SafeTrack</Link>
-        {roles.includes("department_editor") || roles.includes("administrator") || roles.includes("editor") ? <Link className="rounded-full border px-3 py-1" href={localePath(locale, "/desk")}>Department desk</Link> : null}
+        {roles.includes("department_editor") || roles.includes("administrator") || roles.includes("editor") ? <Link className="rounded-full border px-3 py-1" href={localePath(locale, "/department")}>Department desk</Link> : null}
         {roles.some((role) => ["administrator", "editor", "moderator"].includes(role)) ? <Link className="rounded-full border px-3 py-1" href={localePath(locale, "/admin")}>Admin</Link> : null}
       </div>
       <p>{t(locale, "points")}: {pointsBalance(userId)}</p>

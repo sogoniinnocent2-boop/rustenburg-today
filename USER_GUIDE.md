@@ -22,7 +22,7 @@ Community posts can be an update, discussion, poll, safety report or lost-and-fo
 
 ## Department desk
 
-If an administrator assigns you to a department, open **Department desk** from your account, or go to `/en/desk`. One account can hold several departments; switch tabs on the desk for each one. Publish only for the pages you are assigned to. Those updates appear on the matching public section. News desk stories sit beside SAnews headline links; they do not replace the official feed.
+If an administrator assigns you to a department, open **www.rustenburgtoday.co.za/department** (or **Department desk** from your account). Sign in, then choose your department. One account can hold several departments. Publish only for the pages you are assigned to. Those updates appear on the matching public section. News desk stories sit beside SAnews headline links; they do not replace the official feed.
 
 The desk shows a story report with views and Facebook-style reaction totals for that department. Download CSV exports the same numbers for Excel or Sheets.
 

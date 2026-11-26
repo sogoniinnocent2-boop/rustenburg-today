@@ -14,7 +14,7 @@ export function AdminShell({ locale, user, children }: { locale: Locale; user: S
         </div>
         <div className="desk-tools">
           <Link href={localePath(locale, "/admin")}>Overview</Link>
-          <Link href={localePath(locale, "/desk")}>Departments</Link>
+          <Link href={localePath(locale, "/department")}>Departments</Link>
           {user ? <span>{user.displayName}</span> : null}
           <Link href={localePath(locale)}>Open the public site</Link>
           {user ? (

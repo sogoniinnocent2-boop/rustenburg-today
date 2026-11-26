@@ -1269,7 +1269,7 @@ export async function deskPublishAction(form: FormData): Promise<void> {
         imageUrl,
         videoUrl: text(form, "videoUrl") || null,
       });
-      redirect(`/${locale}/desk/${section}?notice=published&id=${created.id}`);
+      redirect(`/${locale}/department/${section}?notice=published&id=${created.id}`);
     }
     if (section === "news") {
       let imageUrl: string | null = null;
@@ -1287,7 +1287,7 @@ export async function deskPublishAction(form: FormData): Promise<void> {
         imageUrl,
         departmentSlug: "news",
       });
-      redirect(`/${locale}/desk/news?notice=published&id=${created.id}`);
+      redirect(`/${locale}/department/news?notice=published&id=${created.id}`);
     }
     if (section === "jobs") {
       const id = createJob(user, {
@@ -1296,7 +1296,7 @@ export async function deskPublishAction(form: FormData): Promise<void> {
         jobType: text(form, "jobType") || "full-time",
         closing: text(form, "closing") || undefined,
       }, { publish: true });
-      redirect(`/${locale}/desk/jobs?notice=published&id=${id}`);
+      redirect(`/${locale}/department/jobs?notice=published&id=${id}`);
     }
     if (section === "events") {
       const created = createEvent(user, {
@@ -1306,11 +1306,11 @@ export async function deskPublishAction(form: FormData): Promise<void> {
         start: text(form, "start"),
         venue: text(form, "venue") || undefined,
       }, { publish: true });
-      redirect(`/${locale}/desk/events?notice=published&id=${created.id}`);
+      redirect(`/${locale}/department/events?notice=published&id=${created.id}`);
     }
     if (section === "learn") {
       const course = createCourse(user, { title: text(form, "title"), description: text(form, "description"), priceRands: text(form, "price") || undefined });
-      redirect(`/${locale}/desk/learn?notice=draft&id=${course.id}`);
+      redirect(`/${locale}/department/learn?notice=draft&id=${course.id}`);
     }
     if (section === "business") {
       const created = registerBusiness(user, {
@@ -1321,17 +1321,17 @@ export async function deskPublishAction(form: FormData): Promise<void> {
         address: text(form, "address") || undefined,
         website: text(form, "website") || undefined,
       }, { publish: true });
-      redirect(`/${locale}/desk/business?notice=published&id=${created.id}`);
+      redirect(`/${locale}/department/business?notice=published&id=${created.id}`);
     }
     const moduleKey = text(form, "module");
     if (moduleKey) {
       const input: Record<string, string> = {};
       for (const [key, value] of form.entries()) if (typeof value === "string") input[key] = value;
       const id = createRecord(user, moduleKey, input, { publish: true });
-      redirect(`/${locale}/desk/${section}?notice=published&id=${id}`);
+      redirect(`/${locale}/department/${section}?notice=published&id=${id}`);
     }
     throw new AppError(400, "This department form is not wired for live publish yet");
   } catch (error) {
-    fail(locale, `/desk/${section || ""}`, error);
+    fail(locale, `/department/${section || ""}`, error);
   }
 }

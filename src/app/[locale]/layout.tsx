@@ -13,7 +13,11 @@ export default async function LocaleLayout({ children, params }: { children: Rea
   if (!isLocale(locale)) notFound();
   const user = await currentUser();
   const path = (await headers()).get("x-rt-path") || "";
-  if (path === `/${locale}/admin` || path.startsWith(`/${locale}/admin/`) || path === `/${locale}/desk` || path.startsWith(`/${locale}/desk/`)) {
+  if (
+    path === `/${locale}/admin` || path.startsWith(`/${locale}/admin/`)
+    || path === `/${locale}/desk` || path.startsWith(`/${locale}/desk/`)
+    || path === `/${locale}/department` || path.startsWith(`/${locale}/department/`)
+  ) {
     return <AdminShell locale={locale as Locale} user={user}>{children}</AdminShell>;
   }
   return <Shell locale={locale as Locale} user={user}>{children}</Shell>;

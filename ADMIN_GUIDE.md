@@ -27,7 +27,7 @@ Open **Admin → Departments** to create staff accounts or assign an existing em
 
 One person can hold several departments. Create the account once, then use **Assign another department** with the same email for each extra section. Revoke removes only that section.
 
-Each assigned person signs in with their own account and opens `/en/desk`. What they publish there goes live on that section’s public page. They cannot publish to a department they are not assigned to. The desk story report and CSV download show views and reactions for that department’s stories.
+Each assigned person opens `/department`, signs in, then selects their department. What they publish there goes live on that section’s public page. They cannot publish to a department they are not assigned to. The desk story report and CSV download show views and reactions for that department’s stories.
 
 SAnews RSS keeps feeding News as headline links. Desk-published articles appear on the same News page as your own reporting.
 

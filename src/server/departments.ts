@@ -210,7 +210,7 @@ export function createDepartmentStaff(
   if (process.env.NODE_ENV !== "test") {
     passwordFile = writeBootstrapSecret(
       `department-${section}-${username}.txt`,
-      `email=${email}\npassword=${password}\nsection=${section}\nOpen /en/desk after signing in. Change the password under Account → Security.\n`,
+      `email=${email}\npassword=${password}\nsection=${section}\nOpen /department after signing in, then choose your desk. Change the password under Account → Security.\n`,
     );
   }
   audit(admin.id, "department.staff.create", "user", userId, { section, email });
