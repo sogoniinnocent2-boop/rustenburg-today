@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { t } from "@/lib/i18n";
 
 export function FloatDock({ locale }: { locale: string }) {
   const [top, setTop] = useState(false);
@@ -11,10 +12,10 @@ export function FloatDock({ locale }: { locale: string }) {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
   return (
-    <div className="float-dock">
-      <a className="float-btn" href={`/${locale}/ask`}>Ask</a>
-      <a className="float-btn" href={`/${locale}/saved`}>Saved</a>
-      {top ? <button type="button" className="float-btn" onClick={() => document.getElementById("content")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" })}>Top</button> : null}
+    <div className="float-dock" lang={locale}>
+      <a className="float-btn" href={`/${locale}/ask`}>{t(locale, "nav.ask")}</a>
+      <a className="float-btn" href={`/${locale}/saved`}>{t(locale, "nav.saved")}</a>
+      {top ? <button type="button" className="float-btn" onClick={() => document.getElementById("content")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" })}>{t(locale, "nav.top")}</button> : null}
     </div>
   );
 }

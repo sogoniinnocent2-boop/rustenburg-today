@@ -48,9 +48,9 @@ function DepartmentWires({ locale, section }: { locale: string; section: string 
   const wires = departmentWires(section, 8);
   if (!wires.length) return null;
   return (
-    <section className="mb-8 space-y-3">
-      <h2 className="font-serif text-2xl">From independent sources</h2>
-      <p className="text-sm text-muted">Attributed headlines and links. Full articles stay with the original publisher.</p>
+    <section className="mb-8 space-y-3" lang={locale}>
+      <h2 className="font-serif text-2xl">{t(locale, "ui.wires")}</h2>
+      <p className="text-sm text-muted">{t(locale, "ui.wires.note")}</p>
       <div className="space-y-3">
         {wires.map((item) => (
           <article key={String(item.id)} className="news-row">
@@ -74,8 +74,8 @@ function DepartmentStories({ locale, section }: { locale: string; section: strin
   const stories = listDepartmentStories(section, locale, 8);
   if (!stories.length) return null;
   return (
-    <section className="mb-8 space-y-3">
-      <h2 className="font-serif text-2xl">Department updates</h2>
+    <section className="mb-8 space-y-3" lang={locale}>
+      <h2 className="font-serif text-2xl">{t(locale, "ui.deskUpdates")}</h2>
       <div className="grid gap-4 md:grid-cols-3">
         {stories.map((story) => (
           <StoryCard
@@ -107,14 +107,14 @@ function SectionBody({ locale, section, userId, category, q, soon, view }: { loc
     return (
       <div className="space-y-4">
         <p className="text-sm">{source ? `${source.active || 1} active wire source${(source.active || 1) === 1 ? "" : "s"} (including “${source.name}”). Last SAnews check ${source.checked ? source.checked.slice(0, 16) : "not yet"}.${source.error ? ` Last error: ${source.error}` : ""}` : "No wire sources are installed yet."} SAnews is one contributor among several. <a className="font-semibold text-[#1d4e89]" href="/api/v1/briefing.xml">Briefing feed</a></p>
-        {breaking.length ? <ul className="space-y-2">{breaking.map((item) => <li key={String(item.id)} className="text-sm"><span className="font-semibold uppercase text-[#1d4e89]">Breaking</span> · <Link href={localePath(locale, `/news/${item.slug}`)}>{String(item.headline)}</Link> · {String(item.publisher)}</li>)}</ul> : <p className="text-sm">No story is marked breaking.</p>}
-        {userId ? <div className="flex flex-wrap gap-2">{newsCategories().map((item) => <form key={item.slug} action={topicAction}><input type="hidden" name="locale" value={locale} /><input type="hidden" name="category" value={item.slug} /><input type="hidden" name="return" value={localePath(locale, "/news")} /><button className="rounded-full border px-3 py-1 text-xs">Follow {item.name}</button></form>)}</div> : null}
-        {deskStories.length ? <div className="grid gap-4 md:grid-cols-3">{deskStories.map((story) => <StoryCard key={story.id} locale={locale} href={localePath(locale, `/news/${story.slug}`)} title={story.title} excerpt={story.excerpt} meta={`${story.author} · desk update`} image={story.image} video={story.video} demo={story.demo} />)}</div> : null}
-        {wires.map((item) => <article key={String(item.id)} className="news-row"><p className="news-kicker">{String(item.region)}{item.sponsored ? " · Sponsored" : ""}</p><h2 className="font-serif text-2xl"><Link href={localePath(locale, `/news/${item.slug}`)}>{String(item.headline)}</Link></h2><p className="text-sm">{String(item.summary)}</p><p className="text-xs text-muted">{String(item.publisher)}{item.author_name ? ` · ${item.author_name}` : ""}{typeof item.canonical_url === "string" && item.canonical_url.startsWith("http") ? <> · <a href={item.canonical_url}>Open the original</a></> : null}</p></article>)}
-        <div className="grid gap-4 md:grid-cols-3">{news.items.filter((story) => !deskStories.some((desk) => desk.id === story.id)).map((story) => <StoryCard key={story.id} locale={locale} href={localePath(locale, `/news/${story.slug}`)} title={story.title} excerpt={story.excerpt} meta={`${story.category} · ${story.readingMinutes} min`} image={story.image} video={story.video} demo={story.demo} />)}</div>
+        {breaking.length ? <ul className="space-y-2">{breaking.map((item) => <li key={String(item.id)} className="text-sm"><span className="font-semibold uppercase text-[#1d4e89]">{t(locale, "ui.breaking")}</span> · <Link href={localePath(locale, `/news/${item.slug}`)}>{String(item.headline)}</Link> · {String(item.publisher)}</li>)}</ul> : <p className="text-sm">{t(locale, "ui.noBreaking")}</p>}
+        {userId ? <div className="flex flex-wrap gap-2">{newsCategories().map((item) => <form key={item.slug} action={topicAction}><input type="hidden" name="locale" value={locale} /><input type="hidden" name="category" value={item.slug} /><input type="hidden" name="return" value={localePath(locale, "/news")} /><button className="rounded-full border px-3 py-1 text-xs">{t(locale, "follow")} {item.name}</button></form>)}</div> : null}
+        {deskStories.length ? <div className="grid gap-4 md:grid-cols-3">{deskStories.map((story) => <StoryCard key={story.id} locale={locale} href={localePath(locale, `/news/${story.slug}`)} title={story.title} excerpt={story.excerpt} meta={`${story.author} · ${t(locale, "ui.deskUpdate")}`} image={story.image} video={story.video} demo={story.demo} />)}</div> : null}
+        {wires.map((item) => <article key={String(item.id)} className="news-row"><p className="news-kicker">{String(item.region)}{item.sponsored ? ` · ${t(locale, "sponsored")}` : ""}</p><h2 className="font-serif text-2xl"><Link href={localePath(locale, `/news/${item.slug}`)}>{String(item.headline)}</Link></h2><p className="text-sm">{String(item.summary)}</p><p className="text-xs text-muted">{String(item.publisher)}{item.author_name ? ` · ${item.author_name}` : ""}{typeof item.canonical_url === "string" && item.canonical_url.startsWith("http") ? <> · <a href={item.canonical_url}>{t(locale, "ui.openOriginal")}</a></> : null}</p></article>)}
+        <div className="grid gap-4 md:grid-cols-3">{news.items.filter((story) => !deskStories.some((desk) => desk.id === story.id)).map((story) => <StoryCard key={story.id} locale={locale} href={localePath(locale, `/news/${story.slug}`)} title={story.title} excerpt={story.excerpt} meta={`${story.category} · ${story.readingMinutes} ${t(locale, "ui.min")}`} image={story.image} video={story.video} demo={story.demo} />)}</div>
         <section>
-          <h2 className="font-serif text-2xl">Corrections</h2>
-          {corrections.length ? <ul className="mt-2 space-y-2">{corrections.map((item) => <li key={`${item.slug}-${item.created_at}`} className="text-sm"><Link className="font-semibold" href={localePath(locale, `/news/${item.slug}`)}>{item.title}</Link> · {item.note}</li>)}</ul> : <p className="text-sm">No correction is on file.</p>}
+          <h2 className="font-serif text-2xl">{t(locale, "ui.corrections")}</h2>
+          {corrections.length ? <ul className="mt-2 space-y-2">{corrections.map((item) => <li key={`${item.slug}-${item.created_at}`} className="text-sm"><Link className="font-semibold" href={localePath(locale, `/news/${item.slug}`)}>{item.title}</Link> · {item.note}</li>)}</ul> : <p className="text-sm">{t(locale, "ui.noCorrections")}</p>}
         </section>
       </div>
     );

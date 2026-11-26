@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { headers } from "next/headers";
-import { localePath, t, type Locale, LOCALES } from "@/lib/i18n";
+import { localePath, t, type Locale, LOCALES, type MessageKey } from "@/lib/i18n";
 import { sectionBySlug, sections } from "@/lib/sections";
 import { divisions } from "@/lib/divisions";
 import { formatMoney, formatWhen, paragraphs } from "@/lib/text";
@@ -10,6 +10,7 @@ import { MenuDrawer } from "@/components/drawer";
 import { PageFlow } from "@/components/page-flow";
 import { CompactBar } from "@/components/compact-bar";
 import { FloatDock } from "@/components/float-dock";
+import { BrandLogo } from "@/components/brand-logo";
 import { MobileDock, PrimaryNav } from "@/components/primary-nav";
 import { unreadCount } from "@/server/alerts";
 
@@ -33,7 +34,7 @@ export async function Shell({ locale, user, children }: { locale: Locale; user: 
       <div className="app-frame mx-auto w-full max-w-[1440px] px-3 py-3 lg:px-5">
         <Header locale={locale} user={user} path={path} />
         <Breadcrumbs locale={locale} path={path} />
-        <main id="content" className="px-1 py-4 lg:px-2"><PageFlow path={path}>{children}</PageFlow></main>
+        <main id="content" className="px-1 py-4 lg:px-2" lang={locale}><PageFlow path={path}>{children}</PageFlow></main>
         <Footer locale={locale} user={user} />
         <MobileDock locale={locale} signedIn={Boolean(user)} />
         <FloatDock locale={locale} />
@@ -46,17 +47,16 @@ function Sidebar({ locale, path, theme }: { locale: Locale; path: string; theme:
   const rest = path.replace(/^\/(en|tn|af)/, "") || "/";
   return (
     <>
-      <Link href={localePath(locale)} className="brand-lockup border-b border-white/40 px-5 py-5 dark:border-white/10">
-        <BrandMark />
+      <Link href={localePath(locale)} className="brand-lockup border-b border-white/40 px-5 py-5 dark:border-white/10" aria-label={`${t(locale, "brand")}. ${t(locale, "tagline")}`}>
+        <BrandLogo size="lg" />
         <span className="brand-copy">
-          <span className="font-serif text-2xl leading-none text-forest dark:text-cloud">Rustenburg Today</span>
           <span className="brand-credit is-visible">{t(locale, "tagline")}</span>
         </span>
       </Link>
       <div className="flex gap-2 px-4 pt-3">
-        <Link className="nav-pill bar-action bar-action-ticket" href={localePath(locale, "/tickets")}>Tickets</Link>
-        <Link className="nav-pill bar-action bar-action-property" href={localePath(locale, "/property")}>Property</Link>
-        <Link className="nav-pill" href={localePath(locale, "/desks")}>Desks</Link>
+        <Link className="nav-pill bar-action bar-action-ticket" href={localePath(locale, "/tickets")}>{t(locale, "nav.tickets")}</Link>
+        <Link className="nav-pill bar-action bar-action-property" href={localePath(locale, "/property")}>{t(locale, "nav.property")}</Link>
+        <Link className="nav-pill" href={localePath(locale, "/desks")}>{t(locale, "nav.desks")}</Link>
       </div>
       <div className="side-scroll flex-1 px-3 py-3">
         {divisions.map((division) => (
@@ -80,7 +80,7 @@ function Sidebar({ locale, path, theme }: { locale: Locale; path: string; theme:
       <div className="border-t border-white/40 px-4 py-4 text-sm dark:border-white/10">
         <div className="flex flex-wrap gap-2">
           {LOCALES.map((item) => (
-            <Link key={item} className="nav-pill" href={`/${item}${rest}`}>{item === "en" ? "English" : item === "af" ? "Afrikaans" : "Setswana"}</Link>
+            <Link key={item} className="nav-pill" href={`/${item}${rest}`} hrefLang={item} lang={item}>{t(locale, `lang.${item}` as MessageKey)}</Link>
           ))}
         </div>
         <form action={themeAction} className="mt-3">
@@ -107,10 +107,9 @@ export async function Header({ locale, user, path }: { locale: Locale; user: Ses
           <MenuDrawer label={t(locale, "menu")} closeLabel={t(locale, "close")}>
             <Sidebar locale={locale} path={path} theme={theme} />
           </MenuDrawer>
-          <Link href={localePath(locale)} className="brand-lockup" aria-label={`Rustenburg Today. ${t(locale, "tagline")}`}>
-            <span className="brand-mark-wrap"><BrandMark /></span>
+          <Link href={localePath(locale)} className="brand-lockup" aria-label={`${t(locale, "brand")}. ${t(locale, "tagline")}`}>
+            <span className="brand-mark-wrap"><BrandLogo size="md" priority decorative /></span>
             <span className="brand-copy">
-              <span className="brand-name">Rustenburg Today</span>
               <Slogan text={t(locale, "tagline")} />
             </span>
           </Link>
@@ -133,9 +132,9 @@ export async function Header({ locale, user, path }: { locale: Locale; user: Ses
             <div className="nav-drop-panel glass-card text-graphite dark:text-cloud">
               {user ? <Link className="nav-link" href={localePath(locale, "/account")}>{t(locale, "account")}</Link> : <Link className="nav-link" href={localePath(locale, "/auth/sign-in")}>{t(locale, "signIn")}</Link>}
               {user ? null : <Link className="nav-link" href={localePath(locale, "/auth/sign-up")}>{t(locale, "register")}</Link>}
-              {user ? <Link className="nav-link" href={localePath(locale, "/safetrack")}>SafeTrack</Link> : null}
+              {user ? <Link className="nav-link" href={localePath(locale, "/safetrack")}>{t(locale, "nav.safetrack")}</Link> : null}
               {LOCALES.map((item) => (
-                <Link key={item} className="nav-link" href={`/${item}${rest}`}>{item === "en" ? "English" : item === "af" ? "Afrikaans" : "Setswana"}</Link>
+                <Link key={item} className="nav-link" href={`/${item}${rest}`} hrefLang={item} lang={item}>{t(locale, `lang.${item}` as MessageKey)}</Link>
               ))}
               <form action={themeAction}>
                 <input type="hidden" name="return" value={path} />
@@ -148,16 +147,6 @@ export async function Header({ locale, user, path }: { locale: Locale; user: Ses
         </div>
       </div>
     </header>
-  );
-}
-
-function BrandMark() {
-  return (
-    <svg className="brand-mark" width="36" height="36" viewBox="0 0 32 32" aria-hidden="true">
-      <rect width="32" height="32" rx="9" fill="#101827" />
-      <path className="ridge" d="M5 24l6.2-9 3.4 4.2 5.6-8.2L27 24" fill="none" stroke="#E7D7B1" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" />
-      <circle className="sun" cx="23.5" cy="9" r="2" fill="#F4F6F9" />
-    </svg>
   );
 }
 
@@ -216,39 +205,38 @@ export function Breadcrumbs({ locale, path }: { locale: Locale; path: string }) 
   );
 }
 
-const footerColumns: Array<[string, Array<[string, string]>]> = [
-  ["Explore", [["/news", "News"], ["/map", "Discover"], ["/desks", "City desks"], ["/tickets", "Tickets"], ["/events", "Events"], ["/tourism", "Tourism"], ["/history/rustenburg", "Rustenburg story"]]],
-  ["Business", [["/business", "Business directory"], ["/marketplace", "Marketplace"], ["/property", "Property"], ["/jobs", "Jobs"], ["/advertising", "Advertise"]]],
-  ["Community", [["/learn", "Learn"], ["/community", "Community"], ["/sports", "Sports"], ["/notices", "Public notices"], ["/safetrack", "SafeTrack"]]],
-  ["Rustenburg Today", [["/about", "About"], ["/ask", "Ask"], ["/features", "Help and features"], ["/legal/guidelines", "Community guidelines"]]],
+const footerColumns: Array<[MessageKey, Array<[string, MessageKey]>]> = [
+  ["footer.explore", [["/news", "dept.news"], ["/map", "nav.discover"], ["/desks", "nav.cityDesks"], ["/tickets", "nav.tickets"], ["/events", "dept.events"], ["/tourism", "dept.tourism"], ["/history/rustenburg", "footer.story"]]],
+  ["footer.business", [["/business", "footer.directory"], ["/marketplace", "dept.marketplace"], ["/property", "dept.property"], ["/jobs", "dept.jobs"], ["/advertising", "footer.advertise"]]],
+  ["footer.community", [["/learn", "dept.learn"], ["/community", "dept.community"], ["/sports", "dept.sports"], ["/notices", "dept.notices"], ["/safetrack", "nav.safetrack"]]],
+  ["footer.brand", [["/about", "about"], ["/ask", "ask.title"], ["/features", "footer.help"], ["/legal/guidelines", "guidelines"]]],
 ];
 
 export function Footer({ locale, user }: { locale: string; user: SessionUser | null }) {
   return (
-    <footer className="site-footer">
+    <footer className="site-footer" lang={locale}>
       <div className="flex items-center gap-3 px-6 pt-8">
-        <BrandMark />
+        <BrandLogo size="lg" />
         <div>
-          <p className="font-serif text-3xl">Rustenburg Today</p>
-          <p className="text-xs tracking-wide text-[#E7D7B1]">The Product Of The Elite Crew (Pty) Ltd.</p>
+          <p className="text-xs tracking-wide text-[#E7D7B1]">{t(locale, "footer.credit")}</p>
         </div>
       </div>
       <div className="px-6 pt-3">
         <p className="text-sm">{t(locale, "tagline")}</p>
-        <p className="mt-2 max-w-xl text-sm text-[#DCE2EA]">A digital home connecting people, businesses, opportunities, news and experiences across Rustenburg and South Africa.</p>
+        <p className="mt-2 max-w-xl text-sm text-[#DCE2EA]">{t(locale, "footer.blurb")}</p>
       </div>
       <div className="grid gap-6 px-6 py-6 sm:grid-cols-2 lg:grid-cols-4">
         {footerColumns.map(([title, links]) => (
           <div key={title}>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#E7D7B1]">{title}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#E7D7B1]">{t(locale, title)}</p>
             <ul className="mt-3 space-y-1.5 text-sm">
-              {links.map(([href, label]) => <li key={href}><Link href={localePath(locale, href)}>{label}</Link></li>)}
+              {links.map(([href, label]) => <li key={href}><Link href={localePath(locale, href)}>{t(locale, label)}</Link></li>)}
             </ul>
           </div>
         ))}
       </div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-white/15 px-6 py-4 text-sm">
-        <span>© {new Date().getFullYear()} Rustenburg Today · The Product Of The Elite Crew (Pty) Ltd.</span>
+        <span>© {new Date().getFullYear()} {t(locale, "brand")} · {t(locale, "footer.credit")}</span>
         <Link href={localePath(locale, "/about")}>{t(locale, "about")}</Link>
         <Link href={localePath(locale, "/legal/privacy")}>{t(locale, "privacy")}</Link>
         <Link href={localePath(locale, "/legal/terms")}>{t(locale, "terms")}</Link>
@@ -307,7 +295,7 @@ export function StoryCard({ locale, href, title, excerpt, meta, demo, sponsored,
         <div className="mb-3 flex gap-2 text-xs font-semibold uppercase tracking-wide">
           {sponsored ? <span className="rounded-full bg-white/80 px-2 py-1 text-forest">{t(locale, "sponsored")}</span> : null}
           {demo ? <span className="rounded-full bg-forest px-2 py-1 text-cloud">{t(locale, "demo")}</span> : null}
-          {video ? <span className="rounded-full bg-emerald px-2 py-1 text-white">Video</span> : null}
+          {video ? <span className="rounded-full bg-emerald px-2 py-1 text-white">{t(locale, "ui.video")}</span> : null}
         </div>
         <h2 className="font-serif text-2xl leading-snug text-forest dark:text-cloud"><Link href={href}>{title}</Link></h2>
         {excerpt ? <p className={`mt-2 flex-1 text-sm text-muted ${kind === "social" ? "text-base leading-6" : ""}`}>{excerpt}</p> : null}
