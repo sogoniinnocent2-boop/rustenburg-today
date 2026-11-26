@@ -5,7 +5,7 @@
   "description": "Rustenburg Today — the digital city platform for Rustenburg, North West, South Africa.",
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build",
+    "build": "node scripts/build.js",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",

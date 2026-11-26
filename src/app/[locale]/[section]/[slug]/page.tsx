@@ -30,18 +30,110 @@ function TrackStory({ locale, kind, id, back, on }: { locale: string; kind: stri
   );
 }
 
-export default async function DetailPage({ params, searchParams }: { params: Promise<{ locale: string; section: string; slug: string }>; searchParams: Promise<{ error?: string; notice?: string }> }) {
+export default async function DetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ locale: string; section: string; slug: string }>;
+  searchParams: Promise<{ error?: string; notice?: string; page?: string; department?: string; category?: string; display?: string }>;
+}) {
   const { locale, section, slug } = await params;
   const query = await searchParams;
   const meta = sectionBySlug(section);
   if (!meta) notFound();
   const user = await currentUser();
   if (section === "news") {
+    if (slug === "official") {
+      const page = Number(query.page || "1") || 1;
+      const { listOfficialStories } = await import("@/server/newsedition");
+      const { OfficialStories } = await import("@/components/official-stories");
+      const { NewsSubscribe } = await import("@/components/news-subscribe");
+      const { NEWS_PUBLISHING_DEPARTMENTS } = await import("@/lib/news-display");
+      const categories = newsCategories();
+      const display = query.display === "headline" || query.display === "body" ? query.display : undefined;
+      const official = listOfficialStories({
+        page,
+        limit: 12,
+        department: query.department,
+        category: query.category,
+        displayType: display,
+      });
+      const filterQs = new URLSearchParams();
+      if (query.department) filterQs.set("department", query.department);
+      if (query.category) filterQs.set("category", query.category);
+      if (display) filterQs.set("display", display);
+      const filterSuffix = filterQs.toString() ? `&${filterQs.toString()}` : "";
+      return (
+        <div className="space-y-8">
+          <PageIntro locale={locale} title={t(locale, "home.latestOfficial")} summary={t(locale, "home.officialIntro")} />
+          <NewsSubscribe locale={locale} userId={user?.id} />
+          <form className="official-filters" method="get" action={localePath(locale, "/news/official")}>
+            <label>
+              <span>{t(locale, "home.officialFilterDepartment")}</span>
+              <select name="department" defaultValue={query.department || ""} className={control}>
+                <option value="">{t(locale, "home.officialAllDepartments")}</option>
+                {NEWS_PUBLISHING_DEPARTMENTS.map((item) => (
+                  <option key={item.slug} value={item.slug}>{item.label}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>{t(locale, "home.officialFilterCategory")}</span>
+              <select name="category" defaultValue={query.category || ""} className={control}>
+                <option value="">{t(locale, "home.officialAllCategories")}</option>
+                {categories.map((item) => (
+                  <option key={item.slug} value={item.slug}>{item.name}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Display type</span>
+              <select name="display" defaultValue={display || ""} className={control}>
+                <option value="">Headline and body</option>
+                <option value="headline">Headline News</option>
+                <option value="body">Body News</option>
+              </select>
+            </label>
+            <button className={button}>{t(locale, "search")}</button>
+          </form>
+          <OfficialStories locale={locale} stories={official.items} total={official.total} variant={display === "headline" ? "headline" : "official"} />
+          {official.total > page * 12 ? (
+            <p>
+              <Link className={button} href={`${localePath(locale, "/news/official")}?page=${page + 1}${filterSuffix}${display ? `&display=${display}` : ""}`}>
+                {t(locale, "home.loadMore")}
+              </Link>
+            </p>
+          ) : null}
+        </div>
+      );
+    }
+    const { editorialBySlug } = await import("@/lib/editorial-categories");
+    const editorial = editorialBySlug(slug);
+    if (editorial) {
+      const page = Number(query.page || "1") || 1;
+      const { EditorialCategoryView } = await import("@/components/newsroom");
+      return <EditorialCategoryView locale={locale} slug={slug} page={page} />;
+    }
     const category = newsCategories().find((item) => item.slug === slug);
     if (category) {
       const { listArticles } = await import("@/server/editorial");
       const news = listArticles({ locale, category: slug });
-      return <div><PageIntro locale={locale} title={category.name} summary={t(locale, "sum.news")} />{news.items.map((story) => <p key={story.id} className="mb-3"><Link className="font-serif text-2xl" href={localePath(locale, `/news/${story.slug}`)}>{story.title}</Link></p>)}</div>;
+      return (
+        <div>
+          <PageIntro locale={locale} title={category.name} summary={t(locale, "sum.news")} />
+          {news.items.length ? (
+            news.items.map((story) => (
+              <p key={story.id} className="mb-3">
+                <Link className="font-serif text-2xl" href={localePath(locale, `/news/${story.slug}`)}>
+                  {story.title}
+                </Link>
+              </p>
+            ))
+          ) : (
+            <p className="text-sm">No published story is filed under {category.name} yet.</p>
+          )}
+        </div>
+      );
     }
     const article = getArticle(slug, locale);
     if (!article) {
@@ -50,7 +142,8 @@ export default async function DetailPage({ params, searchParams }: { params: Pro
       return (
         <article>
           <PageIntro locale={locale} kicker={String(wire.story_kind)} title={String(wire.headline)} summary={String(wire.summary)} />
-          <p className="text-sm">{String(wire.publisher)}{wire.author_name ? ` · ${wire.author_name}` : ""}{wire.original_published_at ? ` · ${String(wire.original_published_at).slice(0, 10)}` : ""}</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#1d4e89]">External publisher · not original Rustenburg Today journalism</p>
+          <p className="text-sm">{String(wire.publisher)}{wire.author_name ? ` · ${wire.author_name}` : ""}{wire.original_published_at ? ` · ${String(wire.original_published_at).slice(0, 10)}` : ""}{wire.region ? ` · ${String(wire.region)}` : ""}</p>
           <p className="mt-2 text-sm">Rights: {String(wire.rights_status)}. This page stores a headline and a short permitted summary. It is not a republication of the original article, so it does not estimate a reading time.</p>
           <div className="mt-4 flex flex-wrap gap-3">
             {wire.canonical_url ? <a className={button} href={String(wire.canonical_url)} rel="noopener noreferrer">Open the original report</a> : null}
@@ -70,6 +163,7 @@ export default async function DetailPage({ params, searchParams }: { params: Pro
       <article>
         <Notice error={query.error} notice={query.notice} />
         <PageIntro locale={locale} kicker={article.category} title={article.title} summary={article.excerpt} />
+        <p className="mb-4 text-xs font-semibold uppercase tracking-[0.14em] text-emerald">Original Rustenburg Today reporting</p>
         {article.demo ? <p className="mb-4 text-sm font-semibold uppercase text-emerald">{t(locale, "demo")}</p> : null}
         {article.fallback ? <p className="mb-4 text-sm">{t(locale, "fallback.language")}</p> : null}
         {article.image ? <img src={article.image} alt="" className="mb-4 max-h-[28rem] w-full rounded-3xl object-cover" /> : null}
@@ -78,7 +172,7 @@ export default async function DetailPage({ params, searchParams }: { params: Pro
         ) : null}
         <Prose text={article.body} />
         <p className="mt-6 text-sm text-muted">{article.author} · {article.readingMinutes} min, counted from this article · <When locale={locale} value={article.publishedAt} /></p>
-        {article.sources.length ? <ul className="mt-4 text-sm">{article.sources.map((source) => <li key={source.source_name}>{source.source_name}</li>)}</ul> : null}
+        {article.sources.length ? <ul className="mt-4 text-sm">{article.sources.map((source) => <li key={source.source_name}>{source.source_name}{source.source_url ? <> · <a href={source.source_url} rel="noopener noreferrer">Source link</a></> : null}</li>)}</ul> : null}
         {article.corrections.map((item) => <p key={item.created_at} className="mt-4 rounded-2xl bg-gold/20 p-4 text-sm"><strong>Correction.</strong> {item.note}</p>)}
         <ArticleReactions
           locale={locale}
@@ -96,6 +190,16 @@ export default async function DetailPage({ params, searchParams }: { params: Pro
           {user ? <form action={topicAction}><HiddenLocale locale={locale} /><input type="hidden" name="category" value={article.categorySlug} /><input type="hidden" name="return" value={articleBack} /><button className={button}>Follow {article.category}</button></form> : null}
         </div>
         <Related locale={locale} category={article.categorySlug} articleId={article.id} />
+        {user && (user.roles.includes("editor") || user.roles.includes("administrator")) ? (
+          <form action={cityDeskAction} className="mt-4 flex flex-wrap gap-2">
+            <HiddenLocale locale={locale} />
+            <input type="hidden" name="intent" value="article-breaking" />
+            <input type="hidden" name="id" value={article.id} />
+            <input type="hidden" name="return" value={articleBack} />
+            <button name="breaking" value="1" className={button}>Mark breaking</button>
+            <button name="breaking" value="0" className={button}>Clear breaking</button>
+          </form>
+        ) : null}
         {user && (user.roles.includes("editor") || user.roles.includes("administrator")) ? <TranslationDesk locale={locale} articleId={article.id} back={localePath(locale, `/news/${article.slug}`)} /> : null}
         <CommentBox locale={locale} kind="article" id={article.id} back={localePath(locale, `/news/${article.slug}`)} user={Boolean(user)} />
         <ul className="mt-6 space-y-3">{comments.map((comment) => <li key={comment.id} className="rounded-2xl bg-white p-4 dark:bg-white/5"><strong>{comment.display_name}</strong><p>{comment.body}</p></li>)}</ul>

@@ -1,4 +1,15 @@
 import { ARTICLE_REACTIONS, isArticleReaction, type ArticleReactionId } from "@/lib/reactions";
+import {
+  EDITORIAL_PRIORITIES,
+  MAX_DEPARTMENT_HEADLINES,
+  MAX_SITE_HEADLINES,
+  NEWS_PUBLISHING_DEPARTMENTS,
+  isNewsPublishingDepartment,
+  normalizeDisplayType,
+  normalizePriority,
+  type EditorialPriority,
+  type NewsDisplayType,
+} from "@/lib/news-display";
 import { containsSensitiveIdentity, readingMinutes, safeExternalUrl, slugify } from "@/lib/text";
 import type { SessionUser } from "./auth";
 import { assertActive } from "./auth";
@@ -9,7 +20,9 @@ import { embedVideo } from "./community";
 import { canPublishSection } from "./departments";
 import { requirePermission } from "./permissions";
 import { audit, indexDocument, rateLimit, removeIndex, track } from "./store";
-import { fanout } from "./alerts";
+import { fanout, notifyOfficialPublication } from "./alerts";
+
+export { NEWS_PUBLISHING_DEPARTMENTS, EDITORIAL_PRIORITIES, type NewsDisplayType, type EditorialPriority };
 
 const TABLES = new Set(["articles", "businesses", "products", "courses", "events", "podcasts", "videos", "video_channels"]);
 
@@ -43,7 +56,27 @@ function categoryId(slug: string): string {
   return row.id;
 }
 
-export function createArticle(user: SessionUser, input: { categorySlug: string; language: string; title: string; excerpt: string; body: string; tags?: string; sourceName?: string; sourceUrl?: string; featured?: boolean; scheduledFor?: string | null; imageUrl?: string | null; departmentSlug?: string | null; videoUrl?: string | null }): { id: string; slug: string } {
+export function createArticle(user: SessionUser, input: {
+  categorySlug: string;
+  language: string;
+  title: string;
+  excerpt: string;
+  body: string;
+  tags?: string;
+  sourceName?: string;
+  sourceUrl?: string;
+  featured?: boolean;
+  scheduledFor?: string | null;
+  imageUrl?: string | null;
+  departmentSlug?: string | null;
+  videoUrl?: string | null;
+  metaTitle?: string | null;
+  metaDescription?: string | null;
+  locationId?: string | null;
+  displayType?: NewsDisplayType | string | null;
+  priority?: EditorialPriority | string | null;
+  headlineExpiresAt?: string | null;
+}): { id: string; slug: string } {
   ensureReady();
   assertActive(user);
   requirePermission(user.id, "articles.create");
@@ -53,22 +86,40 @@ export function createArticle(user: SessionUser, input: { categorySlug: string; 
   const id = newId();
   const slug = uniqueSlug("articles", copy.title);
   const stamp = new Date().toISOString();
-  const departmentSlug = input.departmentSlug?.trim().toLowerCase() || null;
+  const departmentSlug = (input.departmentSlug?.trim().toLowerCase() || departmentForCategory(input.categorySlug, null));
+  assertDepartmentWritable(user, departmentSlug);
+  if (input.locationId && !get("SELECT id FROM locations WHERE id = ? AND active = 1", input.locationId)) {
+    throw new AppError(400, "Choose a valid location or leave it blank");
+  }
   const videoEmbedUrl = input.videoUrl?.trim() ? embedVideo(input.videoUrl.trim()) : null;
   if (input.videoUrl?.trim() && !videoEmbedUrl) throw new AppError(400, "Use an https YouTube or Vimeo link for the video");
+  const metaTitle = (input.metaTitle || copy.title).trim().slice(0, 160);
+  const metaDescription = (input.metaDescription || copy.excerpt).trim().slice(0, 320);
+  const classification = resolveClassification(user, {
+    displayType: input.displayType ?? (input.featured ? "headline" : "body"),
+    priority: input.priority,
+    headlineExpiresAt: input.headlineExpiresAt,
+    departmentSlug,
+    forPublish: false,
+  });
   transaction(() => {
     run(
-      `INSERT INTO articles (id, author_id, category_id, slug, status, editorial_review_status, featured_image, is_featured, reading_minutes, department_slug, video_embed, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 'draft', 'unreviewed', ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO articles (id, author_id, category_id, slug, status, editorial_review_status, featured_image, is_featured, is_breaking, reading_minutes, department_slug, video_embed, location_id, news_display_type, editorial_priority, headline_expires_at, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 'draft', 'unreviewed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       user.id,
       categoryId(input.categorySlug),
       slug,
       input.imageUrl || null,
-      input.featured ? 1 : 0,
+      classification.isFeatured,
+      classification.isBreaking,
       readingMinutes(copy.body),
       departmentSlug,
       videoEmbedUrl,
+      input.locationId || null,
+      classification.displayType,
+      classification.priority,
+      classification.headlineExpiresAt,
       stamp,
       stamp,
     );
@@ -81,8 +132,8 @@ export function createArticle(user: SessionUser, input: { categorySlug: string; 
       copy.title,
       copy.excerpt,
       copy.body,
-      copy.title,
-      copy.excerpt,
+      metaTitle,
+      metaDescription,
       stamp,
     );
     if (input.sourceName?.trim()) {
@@ -105,10 +156,21 @@ function deskCategory(section: string, requested?: string): string {
     sports: "sports",
     health: "health",
     learn: "education",
-    jobs: "announcements",
+    jobs: "jobs-opportunities",
     transport: "traffic",
     voice: "politics",
     notices: "announcements",
+    agriculture: "agriculture",
+    technology: "technology",
+    tourism: "lifestyle",
+    youth: "community",
+    food: "lifestyle",
+    family: "lifestyle",
+    faith: "community",
+    services: "lifestyle",
+    support: "community",
+    history: "local-news",
+    creators: "entertainment",
   };
   const mapped = map[section] || "local-news";
   return get("SELECT id FROM article_categories WHERE slug = ?", mapped) ? mapped : "local-news";
@@ -174,10 +236,24 @@ export function publishDeskStory(
   return created;
 }
 
-export function listDepartmentStories(section: string, locale: string, limit = 12): ArticleCard[] {
+export function listDepartmentStories(
+  section: string,
+  locale: string,
+  limit = 12,
+  options: { displayType?: NewsDisplayType | "all" } = {},
+): ArticleCard[] {
   ensureReady();
-  const rows = all<ArticleCard & { en_title: string | null; tr_title: string | null; en_excerpt: string | null; tr_excerpt: string | null }>(
+  expireHeadlineSlots();
+  const where = ["a.status = 'published'", "a.deleted_at IS NULL", "a.department_slug = ?", "(tr.id IS NOT NULL OR en.id IS NOT NULL)"];
+  const params: Array<string | number> = [locale, section];
+  if (options.displayType === "headline" || options.displayType === "body") {
+    where.push("IFNULL(a.news_display_type, 'body') = ?");
+    params.push(options.displayType);
+  }
+  params.push(Math.min(limit, 24));
+  const rows = all<ArticleCard & { en_title: string | null; tr_title: string | null; en_excerpt: string | null; tr_excerpt: string | null; news_display_type: string | null; editorial_priority: string | null }>(
     `SELECT a.id, a.slug, a.published_at as publishedAt, a.reading_minutes as readingMinutes, a.is_featured as featured, a.featured_image as image, a.video_embed as video, a.is_demo as demo,
+            a.news_display_type, a.editorial_priority,
             c.name as category, c.slug as categorySlug, p.display_name as author,
             tr.title as tr_title, tr.excerpt as tr_excerpt, en.title as en_title, en.excerpt as en_excerpt
      FROM articles a
@@ -185,11 +261,9 @@ export function listDepartmentStories(section: string, locale: string, limit = 1
      JOIN profiles p ON p.user_id = a.author_id
      LEFT JOIN article_translations tr ON tr.article_id = a.id AND tr.language_code = ? AND tr.review_status = 'approved'
      LEFT JOIN article_translations en ON en.article_id = a.id AND en.language_code = 'en' AND en.review_status = 'approved'
-     WHERE a.status = 'published' AND a.deleted_at IS NULL AND a.department_slug = ? AND (tr.id IS NOT NULL OR en.id IS NOT NULL)
-     ORDER BY a.published_at DESC LIMIT ?`,
-    locale,
-    section,
-    Math.min(limit, 24),
+     WHERE ${where.join(" AND ")}
+     ORDER BY CASE WHEN IFNULL(a.news_display_type, 'body') = 'headline' THEN 0 ELSE 1 END, a.published_at DESC LIMIT ?`,
+    ...params,
   );
   return rows.map((row) => ({
     id: row.id,
@@ -207,6 +281,8 @@ export function listDepartmentStories(section: string, locale: string, limit = 1
     image: row.image,
     video: row.video || null,
     demo: Boolean(row.demo),
+    displayType: normalizeDisplayType(row.news_display_type),
+    priority: normalizePriority(row.editorial_priority),
   }));
 }
 
@@ -225,42 +301,97 @@ function saveTags(articleId: string, raw: string): void {
   }
 }
 
-export function updateArticle(user: SessionUser, id: string, input: { title: string; excerpt: string; body: string; language: string; categorySlug?: string; tags?: string; imageUrl?: string | null }): void {
+export function updateArticle(user: SessionUser, id: string, input: {
+  title: string;
+  excerpt: string;
+  body: string;
+  language: string;
+  categorySlug?: string;
+  tags?: string;
+  imageUrl?: string | null;
+  departmentSlug?: string | null;
+  metaTitle?: string | null;
+  metaDescription?: string | null;
+  locationId?: string | null;
+  keepPublished?: boolean;
+  displayType?: NewsDisplayType | string | null;
+  priority?: EditorialPriority | string | null;
+  headlineExpiresAt?: string | null;
+}): void {
   ensureReady();
   assertActive(user);
   const article = ownedArticle(user, id);
-  if (!["draft", "changes_requested", "in_review"].includes(article.status) && !hasPublish(user)) {
+  if (!["draft", "changes_requested", "in_review", "unpublished", "archived"].includes(article.status) && !hasPublish(user)) {
     throw new AppError(403, "This article can no longer be edited this way");
   }
+  if (article.status === "published" && !hasPublish(user)) throw new AppError(403, "Only editors can change a published article");
   const copy = cleanCopy(input.title, input.excerpt, input.body);
   const language = input.language === "af" || input.language === "tn" ? input.language : "en";
   const stamp = new Date().toISOString();
+  const keepLive = Boolean(input.keepPublished && article.status === "published" && hasPublish(user));
+  const categorySlug = input.categorySlug || get<{ slug: string }>("SELECT slug FROM article_categories WHERE id = ?", article.category_id)?.slug || "local-news";
+  const departmentSlug = input.departmentSlug?.trim().toLowerCase() || departmentForCategory(categorySlug, null);
+  assertDepartmentWritable(user, departmentSlug);
+  if (input.locationId && !get("SELECT id FROM locations WHERE id = ? AND active = 1", input.locationId)) {
+    throw new AppError(400, "Choose a valid location or leave it blank");
+  }
+  const metaTitle = (input.metaTitle || copy.title).trim().slice(0, 160);
+  const metaDescription = (input.metaDescription || copy.excerpt).trim().slice(0, 320);
+  const translationStatus = keepLive ? "approved" : "draft";
+  const classification = resolveClassification(user, {
+    displayType: input.displayType,
+    priority: input.priority,
+    headlineExpiresAt: input.headlineExpiresAt,
+    departmentSlug,
+    forPublish: keepLive,
+    excludeArticleId: id,
+  });
   transaction(() => {
     run(
-      "UPDATE articles SET category_id = ?, featured_image = ?, reading_minutes = ?, updated_at = ?, editorial_review_status = 'unreviewed' WHERE id = ?",
+      "UPDATE articles SET category_id = ?, featured_image = ?, reading_minutes = ?, department_slug = ?, location_id = COALESCE(?, location_id), news_display_type = ?, editorial_priority = ?, headline_expires_at = ?, is_featured = ?, is_breaking = ?, updated_at = ?, editorial_review_status = ? WHERE id = ?",
       input.categorySlug ? categoryId(input.categorySlug) : article.category_id,
       input.imageUrl === undefined ? article.featured_image : input.imageUrl,
       readingMinutes(copy.body),
+      departmentSlug,
+      input.locationId === undefined ? null : input.locationId,
+      classification.displayType,
+      classification.priority,
+      classification.headlineExpiresAt,
+      classification.isFeatured,
+      classification.isBreaking,
       stamp,
+      keepLive ? "approved" : "unreviewed",
       id,
     );
     run(
       `INSERT INTO article_translations (id, article_id, language_code, title, excerpt, body, meta_title, meta_description, review_status, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?)
-       ON CONFLICT(article_id, language_code) DO UPDATE SET title = excluded.title, excerpt = excluded.excerpt, body = excluded.body, meta_title = excluded.meta_title, meta_description = excluded.meta_description, review_status = 'draft', updated_at = excluded.updated_at`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(article_id, language_code) DO UPDATE SET title = excluded.title, excerpt = excluded.excerpt, body = excluded.body, meta_title = excluded.meta_title, meta_description = excluded.meta_description, review_status = excluded.review_status, updated_at = excluded.updated_at`,
       newId(),
       id,
       language,
       copy.title,
       copy.excerpt,
       copy.body,
-      copy.title,
-      copy.excerpt,
+      metaTitle,
+      metaDescription,
+      translationStatus,
       stamp,
     );
     saveTags(id, input.tags || "");
     run("INSERT INTO article_revisions (id, article_id, editor_id, revision_type, revision_content, created_at) VALUES (?, ?, ?, 'edit', ?, ?)", newId(), id, user.id, JSON.stringify(copy), stamp);
   });
+  if (keepLive) {
+    indexDocument({
+      entityType: "article",
+      entityId: article.slug,
+      language,
+      title: copy.title,
+      body: `${copy.excerpt}\n${copy.body}`,
+      publishedAt: stamp,
+      popularity: 1,
+    });
+  }
   audit(user.id, "article.edit", "article", id);
 }
 
@@ -288,9 +419,14 @@ export function submitArticle(user: SessionUser, id: string): void {
 export function reviewArticle(user: SessionUser, id: string, decision: "approve" | "changes" | "publish" | "remove" | "schedule", note?: string, scheduledFor?: string | null): void {
   ensureReady();
   assertActive(user);
-  const article = get<{ id: string; slug: string; category_id: string; status: string; author_id: string }>("SELECT id, slug, category_id, status, author_id FROM articles WHERE id = ? AND deleted_at IS NULL", id);
+  const article = get<{ id: string; slug: string; category_id: string; status: string; author_id: string; department_slug: string | null }>(
+    "SELECT id, slug, category_id, status, author_id, department_slug FROM articles WHERE id = ? AND deleted_at IS NULL",
+    id,
+  );
   if (!article) throw new AppError(404, "Article not found");
-  const deskPublish = decision === "publish" && canPublishSection(user, "news") && article.author_id === user.id;
+  const categorySlug = get<{ slug: string }>("SELECT slug FROM article_categories WHERE id = ?", article.category_id)?.slug || "local-news";
+  const desk = article.department_slug || departmentForCategory(categorySlug, null);
+  const deskPublish = decision === "publish" && canPublishSection(user, desk) && article.author_id === user.id;
   if (!deskPublish) {
     requirePermission(user.id, decision === "changes" || decision === "approve" ? "articles.review" : "articles.publish");
   }
@@ -324,21 +460,60 @@ export function publishDueArticles(): number {
 }
 
 function publishRecord(id: string, stamp: string): void {
-  const article = get<{ slug: string; category_id: string; author_id: string }>("SELECT slug, category_id, author_id FROM articles WHERE id = ?", id);
+  const article = get<{
+    slug: string;
+    category_id: string;
+    author_id: string;
+    department_slug: string | null;
+    news_display_type: string | null;
+    editorial_priority: string | null;
+    headline_expires_at: string | null;
+    is_breaking: number;
+  }>(
+    "SELECT slug, category_id, author_id, department_slug, news_display_type, editorial_priority, headline_expires_at, is_breaking FROM articles WHERE id = ?",
+    id,
+  );
   if (!article) return;
-  run("UPDATE articles SET status = 'published', editorial_review_status = 'approved', published_at = COALESCE(published_at, ?), updated_at = ?, alerts_sent = 0 WHERE id = ?", stamp, stamp, id);
+  const category = get<{ slug: string }>("SELECT slug FROM article_categories WHERE id = ?", article.category_id);
+  const departmentSlug = article.department_slug || departmentForCategory(category?.slug || "local-news", null);
+  const displayType = normalizeDisplayType(article.news_display_type);
+  if (displayType === "headline") {
+    assertHeadlineCapacity(departmentSlug, id);
+  }
+  const expired = article.headline_expires_at && article.headline_expires_at <= stamp;
+  const liveDisplay = displayType === "headline" && !expired ? "headline" : displayType === "headline" && expired ? "body" : displayType;
+  run(
+    "UPDATE articles SET status = 'published', editorial_review_status = 'approved', published_at = COALESCE(published_at, ?), updated_at = ?, alerts_sent = 0, department_slug = ?, news_display_type = ?, is_featured = ? WHERE id = ?",
+    stamp,
+    stamp,
+    departmentSlug,
+    liveDisplay,
+    liveDisplay === "headline" ? 1 : 0,
+    id,
+  );
   run("UPDATE article_translations SET review_status = 'approved' WHERE article_id = ? AND review_status IN ('draft', 'in_review')", id);
   const translations = all<{ language_code: string; title: string; excerpt: string; body: string }>("SELECT language_code, title, excerpt, body FROM article_translations WHERE article_id = ? AND review_status = 'approved'", id);
   for (const translation of translations) {
     indexDocument({ entityType: "article", entityId: article.slug, language: translation.language_code, title: translation.title, body: `${translation.excerpt}\n${translation.body}`, publishedAt: stamp, popularity: 1 });
   }
-  const category = get<{ slug: string }>("SELECT slug FROM article_categories WHERE id = ?", article.category_id);
   const title = translations.find((item) => item.language_code === "en")?.title || translations[0]?.title || "News";
   const excerpt = translations.find((item) => item.language_code === "en")?.excerpt || translations[0]?.excerpt || "";
-  if (category) fanout(`news:${category.slug}`, title, excerpt, `/news/${article.slug}`);
-  if (category?.slug === "breaking-news" || category?.slug === "municipal") {
-    fanout(category.slug === "breaking-news" ? "breaking" : "municipal", title, excerpt, `/news/${article.slug}`);
-    run("UPDATE articles SET alerts_sent = 1 WHERE id = ?", id);
+  const href = publicArticleHref(article.slug);
+  const locationId = get<{ location_id: string | null }>("SELECT location_id FROM articles WHERE id = ?", id)?.location_id || null;
+  notifyOfficialPublication({
+    articleId: id,
+    title,
+    body: excerpt,
+    href,
+    departmentSlug,
+    categorySlug: category?.slug || null,
+    locationId,
+  });
+  const priority = normalizePriority(article.editorial_priority);
+  if (priority === "breaking" || article.is_breaking === 1 || category?.slug === "breaking-news") {
+    fanout("breaking", title, excerpt, href, locationId);
+  } else if (category?.slug === "municipal") {
+    fanout("municipal", title, excerpt, href, locationId);
   }
   track("article.publish", "article", id, article.author_id);
 }
@@ -452,6 +627,8 @@ export type ArticleCard = {
   image: string | null;
   video: string | null;
   demo: boolean;
+  displayType?: NewsDisplayType;
+  priority?: EditorialPriority;
 };
 
 export function listArticles(options: { locale: string; category?: string; page?: number; pageSize?: number; featured?: boolean }): { items: ArticleCard[]; total: number } {
@@ -649,4 +826,386 @@ export function listArticleComments(articleId: string): Array<{ id: string; pare
 export function newsCategories(): Array<{ id: string; name: string; slug: string }> {
   ensureReady();
   return all("SELECT id, name, slug FROM article_categories ORDER BY name");
+}
+
+/** Maps an article category (and optional desk) to the public frontend section that should surface it. */
+export function departmentForCategory(categorySlug: string, departmentSlug?: string | null): string {
+  if (departmentSlug && sectionBySlugSafe(departmentSlug)) return departmentSlug;
+  const map: Record<string, string> = {
+    "local-news": "news",
+    municipal: "news",
+    "crime-safety": "news",
+    community: "community",
+    announcements: "notices",
+    "breaking-news": "news",
+    sports: "sports",
+    education: "learn",
+    "business-mining": "business",
+    health: "health",
+    traffic: "transport",
+    politics: "voice",
+    "jobs-opportunities": "jobs",
+    agriculture: "agriculture",
+    environment: "agriculture",
+    entertainment: "creators",
+    lifestyle: "tourism",
+    technology: "technology",
+    world: "news",
+    africa: "news",
+    "south-africa": "news",
+    multimedia: "tv",
+    investigations: "news",
+    opinion: "news",
+  };
+  return map[categorySlug] || "news";
+}
+
+function sectionBySlugSafe(slug: string): boolean {
+  return isNewsPublishingDepartment(slug) || ["tv", "podcasts", "radio", "music", "property", "marketplace"].includes(slug);
+}
+
+function canSetProminentPriority(user: SessionUser): boolean {
+  return user.roles.includes("administrator") || user.roles.includes("editor") || user.roles.includes("department_editor");
+}
+
+function assertDepartmentWritable(user: SessionUser, departmentSlug: string): void {
+  if (!isNewsPublishingDepartment(departmentSlug) && !sectionBySlugSafe(departmentSlug)) {
+    throw new AppError(400, "Choose a valid publishing department");
+  }
+  if (user.roles.includes("administrator") || user.roles.includes("editor")) return;
+  if (canPublishSection(user, departmentSlug)) return;
+  // Journalists with articles.create may draft for a desk; publishing still needs review or assignment.
+  if (user.roles.includes("journalist")) return;
+  throw new AppError(403, "You cannot publish for this department");
+}
+
+function assertHeadlineCapacity(departmentSlug: string, excludeArticleId?: string): void {
+  const now = new Date().toISOString();
+  const site = get<{ count: number }>(
+    `SELECT COUNT(*) as count FROM articles
+     WHERE status = 'published' AND deleted_at IS NULL AND news_display_type = 'headline' AND is_demo = 0
+       AND (headline_expires_at IS NULL OR headline_expires_at > ?)
+       AND (? IS NULL OR id != ?)`,
+    now,
+    excludeArticleId || null,
+    excludeArticleId || null,
+  )?.count ?? 0;
+  if (site >= MAX_SITE_HEADLINES) {
+    throw new AppError(409, `Headline News is full (limit ${MAX_SITE_HEADLINES}). Unpublish or expire an existing headline first.`);
+  }
+  const dept = get<{ count: number }>(
+    `SELECT COUNT(*) as count FROM articles
+     WHERE status = 'published' AND deleted_at IS NULL AND news_display_type = 'headline' AND is_demo = 0
+       AND department_slug = ?
+       AND (headline_expires_at IS NULL OR headline_expires_at > ?)
+       AND (? IS NULL OR id != ?)`,
+    departmentSlug,
+    now,
+    excludeArticleId || null,
+    excludeArticleId || null,
+  )?.count ?? 0;
+  if (dept >= MAX_DEPARTMENT_HEADLINES) {
+    throw new AppError(409, `This department already has ${MAX_DEPARTMENT_HEADLINES} live Headline News stories.`);
+  }
+}
+
+function resolveClassification(
+  user: SessionUser,
+  input: {
+    displayType?: string | null;
+    priority?: string | null;
+    headlineExpiresAt?: string | null;
+    departmentSlug: string;
+    forPublish: boolean;
+    excludeArticleId?: string;
+  },
+): {
+  displayType: NewsDisplayType;
+  priority: EditorialPriority;
+  headlineExpiresAt: string | null;
+  isFeatured: number;
+  isBreaking: number;
+} {
+  let displayType = normalizeDisplayType(input.displayType);
+  const priority = normalizePriority(input.priority);
+  if ((priority === "breaking" || priority === "top") && !canSetProminentPriority(user) && !canPublishSection(user, input.departmentSlug)) {
+    throw new AppError(403, "Only editors or assigned department editors can set Breaking or Top Story priority");
+  }
+  if (priority === "breaking") displayType = "headline";
+  let headlineExpiresAt: string | null = null;
+  if (input.headlineExpiresAt) {
+    const stamp = new Date(input.headlineExpiresAt).toISOString();
+    if (Number.isNaN(Date.parse(stamp))) throw new AppError(400, "Choose a valid headline expiry time");
+    headlineExpiresAt = stamp;
+  } else if (displayType === "headline" && !headlineExpiresAt) {
+    // Default 7-day headline window so departments cannot hold slots forever.
+    headlineExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  }
+  if (displayType === "body") headlineExpiresAt = null;
+  if (input.forPublish && displayType === "headline") {
+    assertHeadlineCapacity(input.departmentSlug, input.excludeArticleId);
+  }
+  return {
+    displayType,
+    priority,
+    headlineExpiresAt,
+    isFeatured: displayType === "headline" ? 1 : 0,
+    isBreaking: priority === "breaking" ? 1 : 0,
+  };
+}
+
+/** Expire headline slots past headline_expires_at without unpublishing the article. */
+export function expireHeadlineSlots(): number {
+  ensureReady();
+  const now = new Date().toISOString();
+  const due = all<{ id: string }>(
+    `SELECT id FROM articles WHERE status = 'published' AND deleted_at IS NULL AND news_display_type = 'headline'
+     AND headline_expires_at IS NOT NULL AND headline_expires_at <= ?`,
+    now,
+  );
+  for (const row of due) {
+    run("UPDATE articles SET news_display_type = 'body', is_featured = 0, updated_at = ? WHERE id = ?", now, row.id);
+  }
+  return due.length;
+}
+
+export function publicArticleHref(slug: string): string {
+  return `/news/${slug}`;
+}
+
+export type ManagedArticleRow = {
+  id: string;
+  slug: string;
+  title: string;
+  status: string;
+  author: string;
+  category: string;
+  categorySlug: string;
+  department_slug: string | null;
+  published_at: string | null;
+  scheduled_for: string | null;
+  created_at: string;
+  updated_at: string;
+  featured_image: string | null;
+  destination: string;
+  news_display_type: NewsDisplayType;
+  editorial_priority: EditorialPriority;
+  headline_expires_at: string | null;
+};
+
+export function listManagedArticles(options: {
+  status?: string;
+  q?: string;
+  department?: string;
+  displayType?: string;
+  page?: number;
+  pageSize?: number;
+}): { items: ManagedArticleRow[]; total: number; counts: Record<string, number> } {
+  ensureReady();
+  expireHeadlineSlots();
+  const pageSize = Math.min(40, Math.max(1, options.pageSize || 20));
+  const page = Math.max(1, options.page || 1);
+  const where: string[] = ["1 = 1"];
+  const params: Array<string | number> = [];
+  const status = (options.status || "all").trim();
+  if (status === "deleted") where.push("a.deleted_at IS NOT NULL");
+  else if (status === "archived") where.push("a.status = 'archived' AND a.deleted_at IS NULL");
+  else if (status === "unpublished") where.push("a.status = 'unpublished' AND a.deleted_at IS NULL");
+  else if (status === "headline") {
+    where.push("a.deleted_at IS NULL AND IFNULL(a.news_display_type, 'body') = 'headline'");
+  } else if (status === "body") {
+    where.push("a.deleted_at IS NULL AND IFNULL(a.news_display_type, 'body') = 'body'");
+  } else if (status && status !== "all") {
+    where.push("a.status = ? AND a.deleted_at IS NULL");
+    params.push(status);
+  } else {
+    where.push("a.deleted_at IS NULL");
+  }
+  const q = (options.q || "").trim().toLowerCase().slice(0, 80);
+  if (q) {
+    where.push("(lower(en.title) LIKE ? OR lower(p.display_name) LIKE ? OR lower(c.name) LIKE ? OR lower(a.slug) LIKE ?)");
+    const like = `%${q}%`;
+    params.push(like, like, like, like);
+  }
+  if (options.department) {
+    where.push("a.department_slug = ?");
+    params.push(options.department);
+  }
+  if (options.displayType === "headline" || options.displayType === "body") {
+    where.push("IFNULL(a.news_display_type, 'body') = ?");
+    params.push(options.displayType);
+  }
+  const total = get<{ count: number }>(
+    `SELECT COUNT(*) as count
+     FROM articles a
+     JOIN article_categories c ON c.id = a.category_id
+     JOIN profiles p ON p.user_id = a.author_id
+     LEFT JOIN article_translations en ON en.article_id = a.id AND en.language_code = 'en'
+     WHERE ${where.join(" AND ")}`,
+    ...params,
+  )?.count ?? 0;
+  const rows = all<{
+    id: string;
+    slug: string;
+    title: string | null;
+    status: string;
+    author: string;
+    category: string;
+    categorySlug: string;
+    department_slug: string | null;
+    published_at: string | null;
+    scheduled_for: string | null;
+    created_at: string;
+    updated_at: string;
+    featured_image: string | null;
+    news_display_type: string | null;
+    editorial_priority: string | null;
+    headline_expires_at: string | null;
+  }>(
+    `SELECT a.id, a.slug, COALESCE(en.title, a.slug) as title, a.status, p.display_name as author, c.name as category, c.slug as categorySlug,
+            a.department_slug, a.published_at, a.scheduled_for, a.created_at, a.updated_at, a.featured_image,
+            a.news_display_type, a.editorial_priority, a.headline_expires_at
+     FROM articles a
+     JOIN article_categories c ON c.id = a.category_id
+     JOIN profiles p ON p.user_id = a.author_id
+     LEFT JOIN article_translations en ON en.article_id = a.id AND en.language_code = 'en'
+     WHERE ${where.join(" AND ")}
+     ORDER BY a.updated_at DESC
+     LIMIT ? OFFSET ?`,
+    ...params,
+    pageSize,
+    (page - 1) * pageSize,
+  );
+  const countsRows = all<{ status: string; count: number }>(
+    `SELECT CASE WHEN deleted_at IS NOT NULL THEN 'deleted' ELSE status END as status, COUNT(*) as count
+     FROM articles GROUP BY CASE WHEN deleted_at IS NOT NULL THEN 'deleted' ELSE status END`,
+  );
+  const counts: Record<string, number> = { all: 0 };
+  for (const row of countsRows) {
+    counts[row.status] = Number(row.count);
+    if (row.status !== "deleted") counts.all += Number(row.count);
+  }
+  counts.headline = get<{ count: number }>(
+    "SELECT COUNT(*) as count FROM articles WHERE deleted_at IS NULL AND IFNULL(news_display_type, 'body') = 'headline'",
+  )?.count ?? 0;
+  counts.body = get<{ count: number }>(
+    "SELECT COUNT(*) as count FROM articles WHERE deleted_at IS NULL AND IFNULL(news_display_type, 'body') = 'body'",
+  )?.count ?? 0;
+  return {
+    total,
+    counts,
+    items: rows.map((row) => ({
+      ...row,
+      title: row.title || row.slug,
+      destination: departmentForCategory(row.categorySlug, row.department_slug),
+      news_display_type: normalizeDisplayType(row.news_display_type),
+      editorial_priority: normalizePriority(row.editorial_priority),
+    })),
+  };
+}
+
+export function getManagedArticle(id: string): (ManagedArticleRow & {
+  excerpt: string;
+  body: string;
+  meta_title: string | null;
+  meta_description: string | null;
+  tags: string;
+  language: string;
+  location_id: string | null;
+}) | null {
+  ensureReady();
+  const row = get<{
+    id: string;
+    slug: string;
+    status: string;
+    author: string;
+    category: string;
+    categorySlug: string;
+    department_slug: string | null;
+    published_at: string | null;
+    scheduled_for: string | null;
+    created_at: string;
+    updated_at: string;
+    featured_image: string | null;
+    title: string;
+    excerpt: string;
+    body: string;
+    meta_title: string | null;
+    meta_description: string | null;
+    language: string;
+    location_id: string | null;
+    news_display_type: string | null;
+    editorial_priority: string | null;
+    headline_expires_at: string | null;
+  }>(
+    `SELECT a.id, a.slug, a.status, p.display_name as author, c.name as category, c.slug as categorySlug, a.department_slug,
+            a.published_at, a.scheduled_for, a.created_at, a.updated_at, a.featured_image, a.location_id,
+            a.news_display_type, a.editorial_priority, a.headline_expires_at,
+            en.title, en.excerpt, en.body, en.meta_title, en.meta_description, en.language_code as language
+     FROM articles a
+     JOIN article_categories c ON c.id = a.category_id
+     JOIN profiles p ON p.user_id = a.author_id
+     JOIN article_translations en ON en.article_id = a.id AND en.language_code = 'en'
+     WHERE a.id = ?`,
+    id,
+  );
+  if (!row) return null;
+  const tags = all<{ name: string }>(
+    `SELECT t.name FROM tags t JOIN article_tags at ON at.tag_id = t.id WHERE at.article_id = ? ORDER BY t.name`,
+    id,
+  )
+    .map((tag) => tag.name)
+    .join(", ");
+  return {
+    ...row,
+    tags,
+    destination: departmentForCategory(row.categorySlug, row.department_slug),
+    news_display_type: normalizeDisplayType(row.news_display_type),
+    editorial_priority: normalizePriority(row.editorial_priority),
+  };
+}
+
+export function unpublishArticle(user: SessionUser, id: string): void {
+  ensureReady();
+  assertActive(user);
+  requirePermission(user.id, "articles.publish");
+  const article = get<{ slug: string; status: string }>("SELECT slug, status FROM articles WHERE id = ? AND deleted_at IS NULL", id);
+  if (!article) throw new AppError(404, "Article not found");
+  if (article.status !== "published" && article.status !== "scheduled") throw new AppError(400, "Only published or scheduled articles can be unpublished");
+  const stamp = new Date().toISOString();
+  run("UPDATE articles SET status = 'unpublished', alerts_sent = 0, updated_at = ? WHERE id = ?", stamp, id);
+  removeIndex("article", article.slug);
+  run("INSERT INTO article_revisions (id, article_id, editor_id, revision_type, revision_content, created_at) VALUES (?, ?, ?, 'unpublish', 'unpublished', ?)", newId(), id, user.id, stamp);
+  audit(user.id, "article.unpublish", "article", id);
+}
+
+export function archiveArticle(user: SessionUser, id: string): void {
+  ensureReady();
+  assertActive(user);
+  requirePermission(user.id, "articles.publish");
+  const article = get<{ slug: string }>("SELECT slug FROM articles WHERE id = ? AND deleted_at IS NULL", id);
+  if (!article) throw new AppError(404, "Article not found");
+  const stamp = new Date().toISOString();
+  run("UPDATE articles SET status = 'archived', updated_at = ? WHERE id = ?", stamp, id);
+  removeIndex("article", article.slug);
+  run("INSERT INTO article_revisions (id, article_id, editor_id, revision_type, revision_content, created_at) VALUES (?, ?, ?, 'archive', 'archived', ?)", newId(), id, user.id, stamp);
+  audit(user.id, "article.archive", "article", id);
+}
+
+export function restoreArticle(user: SessionUser, id: string): void {
+  ensureReady();
+  assertActive(user);
+  requirePermission(user.id, "articles.publish");
+  const article = get<{ id: string; status: string; deleted_at: string | null }>("SELECT id, status, deleted_at FROM articles WHERE id = ?", id);
+  if (!article) throw new AppError(404, "Article not found");
+  const stamp = new Date().toISOString();
+  if (article.deleted_at) {
+    run("UPDATE articles SET deleted_at = NULL, status = 'draft', editorial_review_status = 'unreviewed', updated_at = ? WHERE id = ?", stamp, id);
+  } else if (article.status === "archived" || article.status === "unpublished" || article.status === "removed") {
+    run("UPDATE articles SET status = 'draft', editorial_review_status = 'unreviewed', updated_at = ? WHERE id = ?", stamp, id);
+  } else {
+    throw new AppError(400, "This article is not archived or unpublished");
+  }
+  run("INSERT INTO article_revisions (id, article_id, editor_id, revision_type, revision_content, created_at) VALUES (?, ?, ?, 'restore', 'restored', ?)", newId(), id, user.id, stamp);
+  audit(user.id, "article.restore", "article", id);
 }

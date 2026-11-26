@@ -4,18 +4,21 @@ import { localePath, t } from "@/lib/i18n";
 import { sectionBySlug } from "@/lib/sections";
 import { divisionForSlug } from "@/lib/divisions";
 import { Empty, HiddenLocale, Money, PageIntro, StoryCard, When, button, control } from "@/components/chrome";
-import { newsCategories, listArticles, listCorrections, listDepartmentStories } from "@/server/editorial";
+import { listCorrections, listDepartmentStories } from "@/server/editorial";
 import { listDrafts, listPosts } from "@/server/community";
 import { listPodcasts, listVideos, listTalent, radioDesk } from "@/server/media";
 import { adProducts, listBusinesses, listProducts } from "@/server/commerce";
 import { listCourses, listCreatorPosts, listEvents, listFixtures, listJobs, listRecords, moduleKeyForSection, publicMap, standings } from "@/server/city";
 import { listGroups } from "@/server/platform";
-import { publishedNews, radioState, wireDesk, breakingNews } from "@/server/citydesk";
+import { radioState, wireDesk } from "@/server/citydesk";
 import { departmentWires } from "@/server/multisource";
+import { NewsroomHome } from "@/components/newsroom";
+import { newsNavCategories } from "@/lib/editorial-categories";
 import { RadioMini } from "@/components/radio-mini";
-import { deskAction, groupAction, postAction, topicAction } from "@/server/actions";
+import { deskAction, groupAction, postAction } from "@/server/actions";
 import { askCity, buildBriefing } from "@/server/engage";
 import { aiStatus } from "@/server/ai";
+import { paymentProviderStatus } from "@/server/payments";
 import { currentUser } from "@/server/session";
 import { MapView } from "@/components/map-view";
 
@@ -35,7 +38,7 @@ export default async function SectionPage({ params, searchParams }: { params: Pr
       {query.notice === "draft" ? <p className="mb-4 text-sm">Saved as a draft. It is not on the public feed.</p> : null}
       <div className="mb-6 flex flex-wrap gap-3 text-sm">
         <Link className="rounded-full bg-emerald px-4 py-2 font-semibold text-white" href={localePath(locale, `/${section}/new`)}>{t(locale, "create")}</Link>
-        {section === "news" ? newsCategories().map((category) => <Link key={category.slug} className="rounded-full border px-3 py-2" href={localePath(locale, `/news/${category.slug}`)}>{category.name}</Link>) : null}
+        {section === "news" ? newsNavCategories().map((category) => <Link key={category.slug} className="rounded-full border px-3 py-2" href={localePath(locale, `/news/${category.slug}`)}>{category.name}</Link>) : null}
       </div>
       {section !== "news" ? <DepartmentStories locale={locale} section={section} /> : null}
       {section !== "news" ? <DepartmentWires locale={locale} section={section} /> : null}
@@ -71,50 +74,108 @@ function DepartmentWires({ locale, section }: { locale: string; section: string 
 }
 
 function DepartmentStories({ locale, section }: { locale: string; section: string }) {
-  const stories = listDepartmentStories(section, locale, 8);
-  if (!stories.length) return null;
+  const headlines = listDepartmentStories(section, locale, 4, { displayType: "headline" });
+  const stories = listDepartmentStories(section, locale, 8, { displayType: "body" });
+  if (!headlines.length && !stories.length) return null;
   return (
-    <section className="mb-8 space-y-3" lang={locale}>
-      <h2 className="font-serif text-2xl">{t(locale, "ui.deskUpdates")}</h2>
-      <div className="grid gap-4 md:grid-cols-3">
-        {stories.map((story) => (
-          <StoryCard
-            key={story.id}
-            locale={locale}
-            href={localePath(locale, `/news/${story.slug}`)}
-            title={story.title}
-            excerpt={story.excerpt}
-            meta={`${story.author} · ${story.readingMinutes} min`}
-            image={story.image}
-            video={story.video}
-            demo={story.demo}
-          />
-        ))}
-      </div>
-    </section>
+    <div className="mb-8 space-y-8" lang={locale}>
+      {headlines.length ? (
+        <section className="space-y-3">
+          <h2 className="font-serif text-2xl">Headline News</h2>
+          <div className="grid gap-4 md:grid-cols-2">
+            {headlines.map((story) => (
+              <StoryCard
+                key={story.id}
+                locale={locale}
+                href={localePath(locale, `/news/${story.slug}`)}
+                title={story.title}
+                excerpt={story.excerpt}
+                meta={`Headline · ${story.author} · ${story.readingMinutes} min`}
+                image={story.image}
+                video={story.video}
+                demo={story.demo}
+              />
+            ))}
+          </div>
+        </section>
+      ) : null}
+      {stories.length ? (
+        <section className="space-y-3">
+          <h2 className="font-serif text-2xl">{t(locale, "ui.deskUpdates")}</h2>
+          <div className="grid gap-4 md:grid-cols-3">
+            {stories.map((story) => (
+              <StoryCard
+                key={story.id}
+                locale={locale}
+                href={localePath(locale, `/news/${story.slug}`)}
+                title={story.title}
+                excerpt={story.excerpt}
+                meta={`${story.author} · ${story.readingMinutes} min`}
+                image={story.image}
+                video={story.video}
+                demo={story.demo}
+              />
+            ))}
+          </div>
+        </section>
+      ) : null}
+    </div>
   );
 }
 
 function SectionBody({ locale, section, userId, category, q, soon, view }: { locale: string; section: string; userId: string | null; category?: string; q?: string; soon?: boolean; view?: string }) {
   if (section === "news") {
-    const news = listArticles({ locale, category, pageSize: 12 });
-    const wires = publishedNews({ limit: 12 });
-    const source = wireDesk();
     const corrections = listCorrections();
-    const breaking = breakingNews();
-    const deskStories = listDepartmentStories("news", locale, 12);
-    if (!news.items.length && !wires.length && !breaking.length && !deskStories.length) return <Empty locale={locale} />;
+    const deskStories = listDepartmentStories("news", locale, 6);
+    const source = wireDesk();
     return (
-      <div className="space-y-4">
-        <p className="text-sm">{source ? `${source.active || 1} active wire source${(source.active || 1) === 1 ? "" : "s"} (including “${source.name}”). Last SAnews check ${source.checked ? source.checked.slice(0, 16) : "not yet"}.${source.error ? ` Last error: ${source.error}` : ""}` : "No wire sources are installed yet."} SAnews is one contributor among several. <a className="font-semibold text-[#1d4e89]" href="/api/v1/briefing.xml">Briefing feed</a></p>
-        {breaking.length ? <ul className="space-y-2">{breaking.map((item) => <li key={String(item.id)} className="text-sm"><span className="font-semibold uppercase text-[#1d4e89]">{t(locale, "ui.breaking")}</span> · <Link href={localePath(locale, `/news/${item.slug}`)}>{String(item.headline)}</Link> · {String(item.publisher)}</li>)}</ul> : <p className="text-sm">{t(locale, "ui.noBreaking")}</p>}
-        {userId ? <div className="flex flex-wrap gap-2">{newsCategories().map((item) => <form key={item.slug} action={topicAction}><input type="hidden" name="locale" value={locale} /><input type="hidden" name="category" value={item.slug} /><input type="hidden" name="return" value={localePath(locale, "/news")} /><button className="rounded-full border px-3 py-1 text-xs">{t(locale, "follow")} {item.name}</button></form>)}</div> : null}
-        {deskStories.length ? <div className="grid gap-4 md:grid-cols-3">{deskStories.map((story) => <StoryCard key={story.id} locale={locale} href={localePath(locale, `/news/${story.slug}`)} title={story.title} excerpt={story.excerpt} meta={`${story.author} · ${t(locale, "ui.deskUpdate")}`} image={story.image} video={story.video} demo={story.demo} />)}</div> : null}
-        {wires.map((item) => <article key={String(item.id)} className="news-row"><p className="news-kicker">{String(item.region)}{item.sponsored ? ` · ${t(locale, "sponsored")}` : ""}</p><h2 className="font-serif text-2xl"><Link href={localePath(locale, `/news/${item.slug}`)}>{String(item.headline)}</Link></h2><p className="text-sm">{String(item.summary)}</p><p className="text-xs text-muted">{String(item.publisher)}{item.author_name ? ` · ${item.author_name}` : ""}{typeof item.canonical_url === "string" && item.canonical_url.startsWith("http") ? <> · <a href={item.canonical_url}>{t(locale, "ui.openOriginal")}</a></> : null}</p></article>)}
-        <div className="grid gap-4 md:grid-cols-3">{news.items.filter((story) => !deskStories.some((desk) => desk.id === story.id)).map((story) => <StoryCard key={story.id} locale={locale} href={localePath(locale, `/news/${story.slug}`)} title={story.title} excerpt={story.excerpt} meta={`${story.category} · ${story.readingMinutes} ${t(locale, "ui.min")}`} image={story.image} video={story.video} demo={story.demo} />)}</div>
+      <div className="space-y-8">
+        <p className="text-sm">
+          {source
+            ? `${source.active || 1} active wire source${(source.active || 1) === 1 ? "" : "s"} (including “${source.name}”). Last SAnews check ${source.checked ? source.checked.slice(0, 16) : "not yet"}.${source.error ? ` Last error: ${source.error}` : ""}`
+            : "No wire sources are installed yet."}{" "}
+          SAnews is one contributor among several.{" "}
+          <a className="font-semibold text-[#1d4e89]" href="/api/v1/briefing.xml">
+            Briefing feed
+          </a>
+        </p>
+        <NewsroomHome locale={locale} />
+        {deskStories.length ? (
+          <section className="space-y-3">
+            <h2 className="font-serif text-2xl">{t(locale, "ui.deskUpdates")}</h2>
+            <div className="grid gap-4 md:grid-cols-3">
+              {deskStories.map((story) => (
+                <StoryCard
+                  key={story.id}
+                  locale={locale}
+                  href={localePath(locale, `/news/${story.slug}`)}
+                  title={story.title}
+                  excerpt={story.excerpt}
+                  meta={`${story.author} · ${t(locale, "ui.deskUpdate")}`}
+                  image={story.image}
+                  video={story.video}
+                  demo={story.demo}
+                />
+              ))}
+            </div>
+          </section>
+        ) : null}
         <section>
           <h2 className="font-serif text-2xl">{t(locale, "ui.corrections")}</h2>
-          {corrections.length ? <ul className="mt-2 space-y-2">{corrections.map((item) => <li key={`${item.slug}-${item.created_at}`} className="text-sm"><Link className="font-semibold" href={localePath(locale, `/news/${item.slug}`)}>{item.title}</Link> · {item.note}</li>)}</ul> : <p className="text-sm">{t(locale, "ui.noCorrections")}</p>}
+          {corrections.length ? (
+            <ul className="mt-2 space-y-2">
+              {corrections.map((item) => (
+                <li key={`${item.slug}-${item.created_at}`} className="text-sm">
+                  <Link className="font-semibold" href={localePath(locale, `/news/${item.slug}`)}>
+                    {item.title}
+                  </Link>{" "}
+                  · {item.note}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm">{t(locale, "ui.noCorrections")}</p>
+          )}
         </section>
       </div>
     );
@@ -183,7 +244,19 @@ function SectionBody({ locale, section, userId, category, q, soon, view }: { loc
     );
   }
   if (section === "talent") return grid(locale, listTalent(category), (item) => ({ href: `/talent/${item.id}`, title: String(item.stage_name), excerpt: String(item.biography), meta: String(item.talent_category) }));
-  if (section === "marketplace") return grid(locale, listProducts({ q, category }), (item) => ({ href: `/marketplace/${item.slug}`, title: String(item.title), excerpt: String(item.description), meta: formatRand(item.price_cents) }));
+  if (section === "marketplace") {
+    const payments = paymentProviderStatus();
+    return (
+      <div className="space-y-4">
+        {!payments.enabled ? (
+          <p className="glass-card p-4 text-sm" role="status">
+            Card and wallet checkout is not active yet ({payments.reason}) Listings can be browsed; paid checkout stays off until a payment provider is configured and verified.
+          </p>
+        ) : null}
+        {grid(locale, listProducts({ q, category }), (item) => ({ href: `/marketplace/${item.slug}`, title: String(item.title), excerpt: String(item.description), meta: formatRand(item.price_cents) }))}
+      </div>
+    );
+  }
   if (section === "jobs") return <div className="space-y-4"><p className="glass-card p-4 text-sm">Do not pay an employment application fee through this platform. An employer identity check is not proof that every vacancy from that employer is genuine. Report a listing that asks for money, banking details or an off-platform payment.</p><p className="text-sm">{soon ? <Link className="font-semibold text-[#1d4e89]" href={localePath(locale, "/jobs")}>All open listings</Link> : <Link className="font-semibold text-[#1d4e89]" href={localePath(locale, "/jobs?soon=1")}>Closing within 14 days</Link>}</p>{grid(locale, listJobs(soon ? { withinDays: 14 } : {}), (item) => ({ href: `/jobs/${item.id}`, title: String(item.title), excerpt: String(item.description), meta: `${String(item.job_type)}${item.closing_date ? ` · Closes ${String(item.closing_date).slice(0, 10)}` : ""}` }))}</div>;
   if (section === "learn") return grid(locale, listCourses(), (item) => ({ href: `/learn/${item.slug}`, title: String(item.title), excerpt: String(item.description), meta: Number(item.price_cents) ? formatRand(item.price_cents) : t(locale, "free") }));
   if (section === "events") return grid(locale, listEvents(), (item) => ({ href: `/events/${item.slug}`, title: String(item.title), excerpt: String(item.description), meta: String(item.start_at).slice(0, 16) }));

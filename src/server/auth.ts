@@ -25,6 +25,8 @@ export type SessionUser = {
   locationId: string | null;
   biography: string | null;
   avatarUrl: string | null;
+  coverUrl: string | null;
+  websiteUrl: string | null;
   visibility: string;
   hasPassword: boolean;
   roles: string[];
@@ -44,9 +46,9 @@ const DUMMY_HASH = hashPassword("timing-pad-password-9");
 
 export function loadUser(userId: string): SessionUser | null {
   ensureReady();
-  const row = get<UserRow & { display_name: string; username: string; preferred_language: string; location_id: string | null; biography: string | null; avatar_url: string | null; visibility: string }>(
+  const row = get<UserRow & { display_name: string; username: string; preferred_language: string; location_id: string | null; biography: string | null; avatar_url: string | null; cover_url: string | null; website_url: string | null; visibility: string }>(
     `SELECT u.id, u.email, u.phone, u.password_hash, u.email_verified_at, u.status, u.is_minor,
-            p.display_name, p.username, p.preferred_language, p.location_id, p.biography, p.avatar_url, p.visibility
+            p.display_name, p.username, p.preferred_language, p.location_id, p.biography, p.avatar_url, p.cover_url, p.website_url, p.visibility
      FROM users u JOIN profiles p ON p.user_id = u.id WHERE u.id = ?`,
     userId,
   );
@@ -64,6 +66,8 @@ export function loadUser(userId: string): SessionUser | null {
     locationId: row.location_id,
     biography: row.biography,
     avatarUrl: row.avatar_url,
+    coverUrl: row.cover_url ?? null,
+    websiteUrl: row.website_url ?? null,
     visibility: row.visibility,
     hasPassword: Boolean(row.password_hash),
     roles: userRoleNames(row.id),
@@ -279,7 +283,18 @@ export function resetPassword(token: string, password: string): void {
   audit(row.user_id, "account.reset", "user", row.user_id);
 }
 
-export function updateProfile(user: SessionUser, input: { displayName?: string; biography?: string; language?: string; locationId?: string | null; visibility?: string; phone?: string; theme?: string; messagePolicy?: string; avatarUrl?: string | null }): void {
+function safeWebsite(value: string | null): string | null {
+  if (!value || !value.trim()) return null;
+  try {
+    const url = new URL(value.trim());
+    if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("protocol");
+    return url.toString().slice(0, 300);
+  } catch {
+    throw new AppError(400, "Use a valid http or https website address");
+  }
+}
+
+export function updateProfile(user: SessionUser, input: { displayName?: string; biography?: string; language?: string; locationId?: string | null; visibility?: string; phone?: string; theme?: string; messagePolicy?: string; avatarUrl?: string | null; coverUrl?: string | null; websiteUrl?: string | null }): void {
   ensureReady();
   assertActive(user);
   const displayName = input.displayName ? z.string().trim().min(2).max(60).parse(input.displayName) : user.displayName;
@@ -300,6 +315,8 @@ export function updateProfile(user: SessionUser, input: { displayName?: string; 
   );
   if (input.phone !== undefined) run("UPDATE users SET phone = ?, updated_at = ? WHERE id = ?", input.phone.trim() || null, stamp, user.id);
   if (input.avatarUrl !== undefined) run("UPDATE profiles SET avatar_url = ?, updated_at = ? WHERE user_id = ?", input.avatarUrl, stamp, user.id);
+  if (input.coverUrl !== undefined) run("UPDATE profiles SET cover_url = ?, updated_at = ? WHERE user_id = ?", input.coverUrl, stamp, user.id);
+  if (input.websiteUrl !== undefined) run("UPDATE profiles SET website_url = ?, updated_at = ? WHERE user_id = ?", safeWebsite(input.websiteUrl), stamp, user.id);
   run(
     "UPDATE user_preferences SET theme = ?, language = ?, privacy_settings = ? WHERE user_id = ?",
     input.theme === "dark" ? "dark" : input.theme === "light" ? "light" : "light",

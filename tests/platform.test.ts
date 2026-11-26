@@ -14,6 +14,7 @@ import { blockUser, commentOnPost, createPost, getPost, moderatePost, reactToPos
 import { get, newId, run } from "../src/server/db";
 import { cityDiscovery } from "../src/server/discover";
 import { acceptGoogleProfile, completeGoogleProfile } from "../src/server/google";
+import { beginOAuthLink, completeOAuthLink, listOAuthProviders } from "../src/server/oauth";
 import { addArticleComment, approveTranslation, correctArticle, createArticle, fileTranslation, getArticle, listArticles, listCorrections, relatedStories, reviewArticle, submitArticle } from "../src/server/editorial";
 import { askCity, awardPoints, briefingRss, namedBookmarks, pointsBalance, redeemOffer, reportContent, resolveReport, sendMessage, toggleBookmark } from "../src/server/engage";
 import { useTestDatabase } from "../src/server/init";
@@ -361,10 +362,16 @@ test("discovery, map reports, popup caps and Google linking", () => {
   assert.throws(() => completeGoogleProfile(pending, "2020-01-01", true, true), /under 13/);
   completeGoogleProfile(pending, "1992-04-04", true, false);
   assert.equal(loadUser(pending.id)?.status, "active");
-  const linked = acceptGoogleProfile({ sub: `link-${resident.email}`, email: resident.email, email_verified: true, name: "Resident" }, "en");
-  assert.equal(linked.next, "home");
-  assert.equal(acceptGoogleProfile({ sub: `link-${resident.email}`, email: resident.email, email_verified: true, name: "Resident" }, "en").next, "home");
-  assert.equal(get<{ count: number }>("SELECT COUNT(*) as count FROM users WHERE email = ?", resident.email)?.count, 1);
+  const linker = account("oauth-linker");
+  assert.throws(
+    () => acceptGoogleProfile({ sub: `clash-${linker.email}`, email: linker.email, email_verified: true, name: "Linker" }, "en"),
+    /already uses this email/,
+  );
+  const ticket = beginOAuthLink(linker, "password123", "google");
+  completeOAuthLink(ticket, "google", { sub: `link-${linker.email}`, email: linker.email, emailVerified: true, name: "Linker" });
+  assert.deepEqual(listOAuthProviders(linker.id), ["google"]);
+  assert.equal(acceptGoogleProfile({ sub: `link-${linker.email}`, email: linker.email, email_verified: true, name: "Linker" }, "en").next, "home");
+  assert.equal(get<{ count: number }>("SELECT COUNT(*) as count FROM users WHERE email = ?", linker.email)?.count, 1);
   assert.throws(() => acceptGoogleProfile({ sub: "unverified-google", email: "unverified-google@example.com", email_verified: false, name: "No" }, "en"), /verified/);
 });
 

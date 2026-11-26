@@ -1,8 +1,10 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { localePath, t } from "@/lib/i18n";
+import { divisionForSlug, divisions } from "@/lib/divisions";
 import { sectionBySlug } from "@/lib/sections";
 import { Field, HiddenLocale, Notice, PageIntro, button, control } from "@/components/chrome";
+import { DeskSwitcher } from "@/components/desk-switcher";
 import { newsCategories } from "@/server/editorial";
 import { businessCategories } from "@/server/commerce";
 import { moduleByKey, moduleKeyForSection } from "@/server/city";
@@ -59,30 +61,55 @@ export default async function DepartmentPage({
   }
 
   const active = tab?.[0];
+  const deskCards = mine
+    .map((slug) => {
+      const section = sectionBySlug(slug);
+      if (!section) return null;
+      const division = divisionForSlug(slug);
+      return {
+        slug,
+        label: t(locale, section.titleKey),
+        division: division ? t(locale, division.labelKey) : "Other desks",
+        divisionId: division?.id || "other",
+      };
+    })
+    .filter(Boolean) as Array<{ slug: string; label: string; division: string; divisionId: string }>;
+
   if (!active) {
+    const orderedDivisions = [
+      ...divisions.map((division) => ({ id: division.id, label: t(locale, division.labelKey) })),
+      { id: "other", label: "Other desks" },
+    ];
     return (
       <div>
         <PageIntro
           locale={locale}
           title="Your content desks"
-          summary={`${user.displayName} · choose a department and keep that public page current with headlines, stories and updates.`}
+          summary={`${user.displayName} · ${mine.length} department${mine.length === 1 ? "" : "s"} on this login. Switch desks without signing out — each workspace keeps its own stories and records.`}
         />
         <Notice error={query.error} notice={query.notice} />
-        <p className="mb-4 max-w-2xl text-sm">Department accounts own the live content for this website. Publish what residents should see on the home page and section pages.</p>
-        <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {mine.map((slug) => {
-            const section = sectionBySlug(slug);
-            if (!section) return null;
+        <p className="mb-4 max-w-2xl text-sm">Department accounts own the live content for this website. Publish what residents should see on the home page and section pages. Actions stay attributed to {user.displayName}.</p>
+        <div className="space-y-8">
+          {orderedDivisions.map((division) => {
+            const cards = deskCards.filter((desk) => desk.divisionId === division.id);
+            if (!cards.length) return null;
             return (
-              <li key={slug}>
-                <Link className="block rounded-2xl bg-white px-4 py-5 transition hover:-translate-y-0.5 dark:bg-white/5" href={localePath(locale, `/department/${slug}`)}>
-                  <strong className="font-serif text-2xl">{t(locale, section.titleKey)}</strong>
-                  <p className="mt-1 text-sm text-muted">Publish headlines and updates for /{slug}</p>
-                </Link>
-              </li>
+              <section key={division.id}>
+                <h2 className="mb-3 font-serif text-2xl">{division.label}</h2>
+                <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {cards.map((desk) => (
+                    <li key={desk.slug}>
+                      <Link className="block rounded-2xl bg-white px-4 py-5 transition hover:-translate-y-0.5 dark:bg-white/5" href={localePath(locale, `/department/${desk.slug}`)}>
+                        <strong className="font-serif text-2xl">{desk.label}</strong>
+                        <p className="mt-1 text-sm text-muted">Publish headlines and updates for /{desk.slug}</p>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </section>
             );
           })}
-        </ul>
+        </div>
       </div>
     );
   }
@@ -100,18 +127,11 @@ export default async function DepartmentPage({
       <PageIntro locale={locale} title={`${t(locale, meta.titleKey)} content desk`} summary={`${user.displayName} · keep /${active} informative for the public site.`} />
       <Notice error={query.error} notice={query.notice === "published" ? "Published on the public department page." : query.notice === "draft" ? "Saved as a draft." : query.notice === "staff-created" ? "Staff account created. One-time password is in data/." : query.notice} />
       <p className="mb-4 text-sm"><Link className="font-semibold text-[#1d4e89]" href={localePath(locale, "/department")}>All content desks</Link></p>
-      <nav className="mb-6 flex flex-wrap gap-2 text-sm" aria-label="Assigned departments">
-        {mine.map((slug) => {
-          const section = sectionBySlug(slug);
-          if (!section) return null;
-          return (
-            <Link key={slug} className={`rounded-full px-3 py-1 ${slug === active ? "bg-[#101827] text-[#F5F7FA]" : "bg-white"}`} href={localePath(locale, `/department/${slug}`)}>
-              {t(locale, section.titleKey)}
-            </Link>
-          );
-        })}
-      </nav>
-      {mine.length > 1 ? <p className="mb-3 text-sm">This account covers {mine.length} departments. Switch above or return to the department list.</p> : null}
+      <DeskSwitcher
+        locale={locale}
+        active={active}
+        desks={deskCards.map(({ slug, label, division }) => ({ slug, label, division }))}
+      />
       <p className="mb-4 text-sm">What you publish here appears on <Link className="font-semibold text-[#1d4e89]" href={localePath(locale, `/${active}`)}>/{active}</Link>. SAnews wires keep feeding News separately.</p>
       <div className="grid gap-8 lg:grid-cols-2">
         <section className="space-y-8">

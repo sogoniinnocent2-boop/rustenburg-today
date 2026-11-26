@@ -120,8 +120,10 @@ export function followedTopics(userId: string): string[] {
 }
 
 export function subscribeAlert(userId: string, category: string, channel: "in_app" | "email", locationId?: string | null): void {
-  const allowed = ["breaking", "neighbourhood", "traffic", "municipal", "events", "jobs", "deals", "safety"];
-  if (!allowed.includes(category)) throw new Error("Unknown alert");
+  const allowed = ["breaking", "neighbourhood", "traffic", "municipal", "events", "jobs", "deals", "safety", "official"];
+  if (!allowed.includes(category) && !category.startsWith("desk:") && !category.startsWith("news:")) {
+    throw new Error("Unknown alert");
+  }
   run("DELETE FROM alert_subscriptions WHERE user_id = ? AND category = ? AND channel = ? AND IFNULL(location_id, '') = IFNULL(?, '')", userId, category, channel, locationId || null);
   run(
     "INSERT INTO alert_subscriptions (id, user_id, category, location_id, channel, enabled, created_at) VALUES (?, ?, ?, ?, ?, 1, ?)",
@@ -132,6 +134,48 @@ export function subscribeAlert(userId: string, category: string, channel: "in_ap
     channel,
     new Date().toISOString(),
   );
+}
+
+/** Free official Rustenburg Today news subscription (all original journalism). */
+export function subscribeOfficialNews(userId: string, channel: "in_app" | "email" = "in_app", locationId?: string | null): void {
+  subscribeAlert(userId, "official", channel, locationId);
+}
+
+export function unsubscribeOfficialNews(userId: string, channel?: "in_app" | "email"): void {
+  if (channel) {
+    run("UPDATE alert_subscriptions SET enabled = 0 WHERE user_id = ? AND category = 'official' AND channel = ?", userId, channel);
+    return;
+  }
+  run("UPDATE alert_subscriptions SET enabled = 0 WHERE user_id = ? AND category = 'official'", userId);
+}
+
+export function officialNewsSubscribed(userId: string): { inApp: boolean; email: boolean } {
+  const rows = all<{ channel: string; enabled: number }>(
+    "SELECT channel, enabled FROM alert_subscriptions WHERE user_id = ? AND category = 'official'",
+    userId,
+  );
+  return {
+    inApp: rows.some((row) => row.channel === "in_app" && row.enabled === 1),
+    email: rows.some((row) => row.channel === "email" && row.enabled === 1),
+  };
+}
+
+/** Notify official-news subscribers once per publication event. */
+export function notifyOfficialPublication(input: {
+  articleId: string;
+  title: string;
+  body: string;
+  href: string;
+  departmentSlug?: string | null;
+  categorySlug?: string | null;
+  locationId?: string | null;
+}): void {
+  const already = get<{ alerts_sent: number }>("SELECT alerts_sent FROM articles WHERE id = ?", input.articleId);
+  if (already && already.alerts_sent === 1) return;
+  fanout("official", input.title, input.body, input.href, input.locationId);
+  if (input.categorySlug) fanout(`news:${input.categorySlug}`, input.title, input.body, input.href, input.locationId);
+  if (input.departmentSlug) fanout(`desk:${input.departmentSlug}`, input.title, input.body, input.href, input.locationId);
+  run("UPDATE articles SET alerts_sent = 1 WHERE id = ?", input.articleId);
 }
 
 export function listNotifications(userId: string, limit = 20): Array<{ id: string; title: string; body: string; target_url: string | null; read_at: string | null; created_at: string }> {

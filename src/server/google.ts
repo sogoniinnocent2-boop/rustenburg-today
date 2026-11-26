@@ -58,6 +58,12 @@ export function acceptGoogleProfile(profile: GoogleProfile, locale: string, meta
   return acceptOAuthProfile("google", shared, locale, meta);
 }
 
-export function completeGoogleProfile(user: SessionUser, dateOfBirth: string, acceptedTerms: boolean, guardianConsent: boolean): void {
-  completeOAuthProfile(user, dateOfBirth, acceptedTerms, guardianConsent);
+export function completeGoogleProfile(
+  user: SessionUser,
+  dateOfBirth: string,
+  acceptedTerms: boolean,
+  guardianConsent: boolean,
+  email?: string,
+): void {
+  completeOAuthProfile(user, dateOfBirth, acceptedTerms, guardianConsent, email);
 }

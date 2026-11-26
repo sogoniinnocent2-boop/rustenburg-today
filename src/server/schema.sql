@@ -36,6 +36,8 @@ CREATE TABLE IF NOT EXISTS profiles (
   display_name TEXT NOT NULL,
   username TEXT NOT NULL UNIQUE,
   avatar_url TEXT,
+  cover_url TEXT,
+  website_url TEXT,
   biography TEXT,
   preferred_language TEXT NOT NULL DEFAULT 'en',
   location_id TEXT REFERENCES locations(id),

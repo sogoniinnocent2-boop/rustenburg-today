@@ -3,15 +3,19 @@ import { localePath, t } from "@/lib/i18n";
 import { Field, HiddenLocale, Notice, PageIntro, button, control } from "@/components/chrome";
 import { notFound, redirect } from "next/navigation";
 import { currentUser } from "@/server/session";
-import { deleteAction, deskAction, exportAction, messageAction, orderAction, passwordAction, profileAction, roleAction, signOutAction, cvAction, organisationAction, topicAction } from "@/server/actions";
+import { deleteAction, deskAction, exportAction, linkOAuthAction, messageAction, newsSubscribeAction, orderAction, passwordAction, profileAction, roleAction, signOutAction, cvAction, organisationAction, simpleAction, topicAction, unlinkOAuthAction } from "@/server/actions";
+import { facebookConfigured } from "@/server/facebook";
+import { googleConfigured } from "@/server/google";
+import { listOAuthProviders } from "@/server/oauth";
 import { listConversations, listMessages, listOwnedEnquiries, pointsBalance } from "@/server/engage";
-import { followedStories, followedTopics } from "@/server/alerts";
+import { followedStories, followedTopics, listNotifications, officialNewsSubscribed } from "@/server/alerts";
 import { listApplications } from "@/server/city";
 import { listRewardOffers } from "@/server/city";
 import { listAdvertiserCampaigns } from "@/server/commerce";
-import { listNotifications } from "@/server/alerts";
+import { manageableSections } from "@/server/departments";
 import { all } from "@/server/db";
 import { REQUEST_ONLY_ROLES } from "@/server/access";
+import { sectionBySlug } from "@/lib/sections";
 
 const tabs = ["overview", "profile", "messages", "notifications", "security", "privacy", "deletion", "listings", "applications", "orders", "events", "courses", "rewards", "advertisements"];
 
@@ -23,7 +27,7 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
   const user = await currentUser();
   if (!user) redirect(localePath(locale, "/auth/sign-in"));
   return (
-    <div className="grid gap-8 md:grid-cols-[14rem_1fr]">
+    <div className="account-shell">
       <nav className="glass-card space-y-3 p-3 text-sm" aria-label="Account">
         {([["Identity", ["overview", "profile", "security", "privacy", "deletion"]], ["Your work", ["messages", "notifications", "listings", "applications", "orders", "events", "courses", "rewards", "advertisements"]]] as const).map(([label, items]) => (
           <div key={label}>
@@ -40,8 +44,25 @@ export default async function AccountPage({ params, searchParams }: { params: Pr
         {active === "profile" ? <form action={profileAction} className="max-w-lg space-y-3"><HiddenLocale locale={locale} />{user.avatarUrl ? <img src={user.avatarUrl} alt="" className="h-16 w-16 rounded-full object-cover" /> : null}<Field label={t(locale, "name")}><input name="displayName" defaultValue={user.displayName} className={control} /></Field><Field label={t(locale, "description")}><textarea name="biography" defaultValue={user.biography || ""} className={control} /></Field><Field label={t(locale, "language")}><select name="language" defaultValue={user.language} className={control}><option value="en">English</option><option value="tn">Setswana</option><option value="af">Afrikaans</option></select></Field><Field label="Who can see this profile"><select name="visibility" defaultValue={user.visibility} className={control}><option value="public">Public</option><option value="private">Private</option></select></Field><Field label={t(locale, "phone")}><input name="phone" defaultValue={user.phone || ""} className={control} /></Field><Field label="Profile photograph"><input name="avatar" type="file" accept="image/jpeg,image/png,image/webp,image/gif" className={control} /></Field><Field label="Messages"><select name="messagePolicy" className={control} disabled={user.isMinor}><option value="connections">People I follow who follow me</option><option value="everyone">Signed-in adults</option><option value="none">No new messages</option></select></Field><button className={button}>{t(locale, "save")}</button></form> : null}
         {active === "messages" ? <Messages locale={locale} userId={user.id} conversation={query.conversation} /> : null}
         {active === "notifications" ? <Notifications locale={locale} userId={user.id} /> : null}
-        {active === "security" ? user.hasPassword ? <form action={passwordAction} className="max-w-md space-y-3"><HiddenLocale locale={locale} /><Field label="Current"><input type="password" name="current" className={control} required /></Field><Field label={t(locale, "password")}><input type="password" name="password" className={control} required /></Field><button className={button}>{t(locale, "save")}</button></form> : <p className="max-w-md text-sm">This account has no password yet. Use <Link href={localePath(locale, "/auth/forgot")}>password reset</Link> to set one. Email is delivered only when SMTP is configured.</p> : null}
-        {active === "privacy" ? <form action={exportAction}><button className={button}>{t(locale, "export")}</button></form> : null}
+        {active === "security" ? <SecurityTab locale={locale} user={user} /> : null}
+        {active === "privacy" ? (
+          <div className="account-panel max-w-xl space-y-4">
+            <section className="account-card space-y-2">
+              <h2 className="font-serif text-2xl">{t(locale, "privacy")}</h2>
+              <p className="text-sm text-muted">
+                Rustenburg Today stores the account details you provide so you can sign in, publish where authorised, receive alerts you chose, and use city services. Profile visibility and message settings are under Profile. Notification choices are under Notifications.
+              </p>
+              <p className="text-sm text-muted">
+                You can download a copy of your account data, change preferences, or close the account. Closing an account does not erase every legal record of orders or payments.
+              </p>
+              <div className="flex flex-wrap gap-3 pt-2">
+                <form action={exportAction}><button className={button}>{t(locale, "export")}</button></form>
+                <Link className={button} href={localePath(locale, "/account/deletion")}>{t(locale, "delete.account")}</Link>
+                <Link className="text-sm font-semibold text-[#1d4e89]" href={localePath(locale, "/legal/privacy")}>{t(locale, "privacy")}</Link>
+              </div>
+            </section>
+          </div>
+        ) : null}
         {active === "deletion" ? <form action={deleteAction} className="max-w-md space-y-3"><HiddenLocale locale={locale} /><p className="text-sm">This closes the account, ends every session, removes the password and replaces the public name with “Deleted user”. Posts can remain under that name. Orders and payment records stay for the legal record. This cannot be undone.</p><Field label="Type DELETE"><input name="confirm" required className={control} autoComplete="off" /></Field>{user.hasPassword ? <Field label={t(locale, "password")}><input type="password" name="password" required className={control} /></Field> : <p className="text-sm">This account has no password. The signed-in session and the word DELETE are the confirmation.</p>}<button className={button}>{t(locale, "delete.account")}</button></form> : null}
         {active === "listings" ? <List sql="SELECT id, title, listing_status as status FROM products WHERE seller_id = ?" userId={user.id} /> : null}
         {active === "applications" ? <Applications locale={locale} userId={user.id} /> : null}
@@ -142,9 +163,40 @@ function Notifications({ locale, userId }: { locale: string; userId: string }) {
   const topics = followedTopics(userId);
   const stories = followedStories(userId);
   const notes = listNotifications(userId);
+  const official = officialNewsSubscribed(userId);
+  const back = localePath(locale, "/account/notifications");
   return (
-    <div className="space-y-4">
-      <section>
+    <div className="account-panel space-y-6">
+      <section className="account-card">
+        <h2 className="font-serif text-2xl">{t(locale, "account.officialNews")}</h2>
+        <p className="mt-2 text-sm text-muted">{t(locale, "account.officialNewsHelp")}</p>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          {official.inApp ? (
+            <>
+              <p className="text-sm font-semibold text-emerald">{t(locale, "home.subscribeActive")}</p>
+              <form action={newsSubscribeAction}>
+                <HiddenLocale locale={locale} />
+                <input type="hidden" name="intent" value="unsubscribe" />
+                <input type="hidden" name="return" value={back} />
+                <button className={button}>{t(locale, "home.unsubscribe")}</button>
+              </form>
+            </>
+          ) : (
+            <form action={newsSubscribeAction} className="flex flex-wrap items-end gap-3">
+              <HiddenLocale locale={locale} />
+              <input type="hidden" name="intent" value="subscribe" />
+              <input type="hidden" name="return" value={back} />
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" name="email" value="yes" />
+                {t(locale, "home.subscribeEmail")}
+              </label>
+              <button className={button}>{t(locale, "home.subscribeNow")}</button>
+            </form>
+          )}
+          {official.email ? <p className="text-xs text-muted">{t(locale, "home.subscribeEmailOn")}</p> : null}
+        </div>
+      </section>
+      <section className="account-card">
         <h2 className="flex items-center gap-2 font-serif text-2xl"><span className="pulse-lamp is-live" aria-hidden="true" />Story tracker</h2>
         {stories.length ? (
           <ul className="mt-2 space-y-2 text-sm">
@@ -157,19 +209,71 @@ function Notifications({ locale, userId }: { locale: string; userId: string }) {
           </ul>
         ) : <p className="mt-2 text-sm">No story is being tracked. Open a published story and choose Track this story.</p>}
       </section>
-      <section>
+      <section className="account-card">
         <h2 className="font-serif text-2xl">Followed topics</h2>
         {topics.length ? topics.map((topic) => (
           <form key={topic} action={topicAction} className="mt-2 flex items-center gap-3 text-sm">
             <HiddenLocale locale={locale} />
             <input type="hidden" name="category" value={topic} />
-            <input type="hidden" name="return" value={localePath(locale, "/account/notifications")} />
+            <input type="hidden" name="return" value={back} />
             <span>{topic}</span>
             <button className="font-semibold text-[#1d4e89]">Unfollow</button>
           </form>
         )) : <p className="text-sm">Follow a news category from the news page. Alerts stay inside this account.</p>}
       </section>
-      {notes.length ? <ul className="space-y-2">{notes.map((item) => <li key={item.id} className="rounded-2xl bg-white p-3 dark:bg-white/5"><strong>{item.title}</strong><p>{item.body}</p>{item.target_url ? <Link className="text-sm font-semibold text-[#1d4e89]" href={localePath(locale, item.target_url)}>Open</Link> : null}</li>)}</ul> : <p className="text-sm">No notifications yet.</p>}
+      <section className="account-card">
+        <h2 className="font-serif text-2xl">Department desk alerts</h2>
+        <p className="mt-2 text-sm text-muted">Optionally follow one department desk for in-app notices when that desk publishes. Official news subscription above covers all original journalism.</p>
+        <form action={simpleAction} className="mt-3 flex flex-wrap items-end gap-3">
+          <HiddenLocale locale={locale} />
+          <input type="hidden" name="intent" value="alert" />
+          <input type="hidden" name="channel" value="in_app" />
+          <input type="hidden" name="return" value={back} />
+          <Field label="Department">
+            <select
+              name="category"
+              className={control}
+              required
+              defaultValue=""
+            >
+              <option value="" disabled>
+                Choose a desk
+              </option>
+              {manageableSections().map((slug) => {
+                const section = sectionBySlug(slug);
+                return (
+                  <option key={slug} value={`desk:${slug}`}>
+                    {section ? t(locale, section.titleKey) : slug}
+                  </option>
+                );
+              })}
+            </select>
+          </Field>
+          <button className={button}>Follow desk</button>
+        </form>
+      </section>
+      <section className="account-card">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-serif text-2xl">{t(locale, "notifications")}</h2>
+          <form action={simpleAction}>
+            <HiddenLocale locale={locale} />
+            <input type="hidden" name="intent" value="read-notes" />
+            <input type="hidden" name="return" value={back} />
+            <button className="text-sm font-semibold text-[#1d4e89]">{t(locale, "account.markRead")}</button>
+          </form>
+        </div>
+        {notes.length ? (
+          <ul className="space-y-2">
+            {notes.map((item) => (
+              <li key={item.id} className={`rounded-2xl p-3 ${item.read_at ? "bg-white/60 dark:bg-white/5" : "bg-white dark:bg-white/10"}`}>
+                <strong>{item.title}</strong>
+                <p>{item.body}</p>
+                {item.target_url ? <Link className="text-sm font-semibold text-[#1d4e89]" href={localePath(locale, item.target_url)}>Open</Link> : null}
+              </li>
+            ))}
+          </ul>
+        ) : <p className="text-sm">No notifications yet.</p>}
+      </section>
     </div>
   );
 }
@@ -231,4 +335,89 @@ function List({ sql, userId }: { sql: string; userId: string }) {
   const rows = all<Record<string, unknown>>(sql, userId);
   if (!rows.length) return <p>Nothing here yet.</p>;
   return <ul className="space-y-2">{rows.map((row) => <li key={String(row.id)} className="rounded-2xl bg-white p-3 dark:bg-white/5">{String(row.title)} · {String(row.status)}</li>)}</ul>;
+}
+
+function SecurityTab({
+  locale,
+  user,
+}: {
+  locale: string;
+  user: {
+    id: string;
+    hasPassword: boolean;
+  };
+}) {
+  const linked = listOAuthProviders(user.id);
+  return (
+    <div className="max-w-md space-y-8">
+      {user.hasPassword ? (
+        <form action={passwordAction} className="space-y-3">
+          <HiddenLocale locale={locale} />
+          <h2 className="font-serif text-2xl">{t(locale, "password")}</h2>
+          <Field label="Current">
+            <input type="password" name="current" className={control} required />
+          </Field>
+          <Field label={t(locale, "password")}>
+            <input type="password" name="password" className={control} required />
+          </Field>
+          <button className={button}>{t(locale, "save")}</button>
+        </form>
+      ) : (
+        <p className="text-sm">
+          This account has no password yet. Use <Link href={localePath(locale, "/auth/forgot")}>password reset</Link> to set one.
+          Email is delivered only when SMTP is configured.
+        </p>
+      )}
+
+      <section className="space-y-3">
+        <h2 className="font-serif text-2xl">{t(locale, "oauth.linked")}</h2>
+        {linked.length ? (
+          <ul className="space-y-2">
+            {linked.map((provider) => (
+              <li key={provider} className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-white/70 p-3 text-sm dark:bg-white/5">
+                <span className="capitalize">{provider}</span>
+                <form action={unlinkOAuthAction}>
+                  <HiddenLocale locale={locale} />
+                  <input type="hidden" name="provider" value={provider} />
+                  <button className={button}>{t(locale, "oauth.unlink")}</button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm">No Google or Facebook sign-in is linked yet.</p>
+        )}
+        {user.hasPassword ? (
+          <div className="space-y-3">
+            <p className="text-sm">{t(locale, "oauth.link")}. Confirm your password first. Accounts are never merged only because emails match.</p>
+            {googleConfigured() && !linked.includes("google") ? (
+              <form action={linkOAuthAction} className="space-y-2 rounded-2xl bg-white/70 p-3 dark:bg-white/5">
+                <HiddenLocale locale={locale} />
+                <input type="hidden" name="provider" value="google" />
+                <Field label={t(locale, "password")}>
+                  <input type="password" name="password" required className={control} />
+                </Field>
+                <button className={button}>Link Google</button>
+              </form>
+            ) : null}
+            {facebookConfigured() && !linked.includes("facebook") ? (
+              <form action={linkOAuthAction} className="space-y-2 rounded-2xl bg-white/70 p-3 dark:bg-white/5">
+                <HiddenLocale locale={locale} />
+                <input type="hidden" name="provider" value="facebook" />
+                <Field label={t(locale, "password")}>
+                  <input type="password" name="password" required className={control} />
+                </Field>
+                <button className={button}>Link Facebook</button>
+              </form>
+            ) : null}
+            {!googleConfigured() && !facebookConfigured() ? (
+              <p className="text-sm text-muted">Google and Facebook linking stay unavailable until provider credentials are configured on the server.</p>
+            ) : null}
+          </div>
+        ) : (
+          <p className="text-sm">Set a password before linking or unlinking social sign-in when it is your only method.</p>
+        )}
+      </section>
+    </div>
+  );
 }

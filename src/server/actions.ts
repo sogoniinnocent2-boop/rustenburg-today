@@ -6,23 +6,39 @@ import { isLocale } from "@/lib/i18n";
 import { randsToCents } from "@/lib/text";
 import { loginAccount, logoutCookie, registerAccount, requestPasswordReset, resetPassword, updateProfile, verifyEmail, deleteAccount, changePassword, enableSelfServeRole, requestPrivilegedRole, exportAccount, userFromCookie, decideRoleRequest, setUserStatus, startSession } from "./auth";
 import { safeReturn } from "@/lib/safe-return";
-import { addArticleComment, approveTranslation, createArticle, fileTranslation, publishDeskArticle, publishDeskStory, reactToArticle, reviewArticle, submitArticle } from "./editorial";
-import { assignDepartment, createDepartmentStaff, revokeDepartment, requireAssigned } from "./departments";
+import {
+  addArticleComment,
+  approveTranslation,
+  archiveArticle,
+  createArticle,
+  fileTranslation,
+  publishDeskArticle,
+  publishDeskStory,
+  reactToArticle,
+  restoreArticle,
+  reviewArticle,
+  submitArticle,
+  unpublishArticle,
+  updateArticle,
+} from "./editorial";
+import { assignAllManageableDepartments, assignDepartment, createDepartmentStaff, revokeDepartment, requireAssigned } from "./departments";
 import { blockUser, commentOnPost, createPost, moderatePost, publishDraft, reactToPost, toggleFollow, voteInPoll } from "./community";
 import { applyToJob, completeLesson, createCourse, createEvent, createJob, createRecord, enrol, issueCertificate, publishCourse, publishEvent, publishJob, publishRecord, registerForEvent, reportMapPoint, saveCandidate, signPetition, pledgeDonation, requestQuote, enterCompetition, saveDeal, submitQuiz, addMenuItem, addPlayer, addFixture, recordResult, createCreatorPost, publishCreatorPost, subscribeCreator, createRewardOffer, publishRewardOffer } from "./city";
 import { cancelUnpaidOrder, createCampaign, createOrder, createProduct, enquireAboutBusiness, enquireAboutProduct, registerBusiness, reviewCampaign, verifyBusiness, verifyCampaignPayment, moderateProduct } from "./commerce";
 import { redeemOffer, reportContent, resolveReport, sendMessage, toggleBookmark } from "./engage";
 import { createPodcast, addEpisode, createVideo, moderateVideo, requestSong, submitMusic, upsertTalent, applyAudition, createAudition } from "./media";
-import { subscribeAlert, setPreference, markNotificationsRead, followTopic, followStory } from "./alerts";
+import { subscribeAlert, setPreference, markNotificationsRead, followTopic, followStory, subscribeOfficialNews, unsubscribeOfficialNews } from "./alerts";
 import { saveUploadBytes, saveUploadFile } from "./uploads";
 import { decideAsset, placeAsset, registerAsset } from "./media-library";
 import { AppError } from "./errors";
 import { currentUser, writePreference, writeSession } from "./session";
 import { cookies } from "next/headers";
-import { completeGoogleProfile } from "./google";
+import { beginOAuthLink, completeOAuthProfile, unlinkOAuthProvider, type OAuthProvider } from "./oauth";
 import { addOrganisationStaff, createGroup, createOrganisation, createTicketOrder, joinGroup, requestAccommodation, requestTicketRefund, requestViewing, scanTicket, addTicketType, issueComplimentary } from "./platform";
 import { clearSearchHistory, saveSearch } from "./search";
 import { addNewsSource, confirmVacancy, fileComplaint, leaveRadioMessage, recordWeather, reviewNewsItem, saveRadioLicence, scheduleTopFive, setBlock, setSourceStatus, setStationAir, verifyEmployerIdentity, pullSource, reportVacancy } from "./citydesk";
+import { setSourceDepartments } from "./multisource";
+import { cancelScheduledMainEditorial, clearMainEditorial, restoreMainEditorial, scheduleMainEditorial, setArticleBreaking } from "./newsedition";
 import { acceptInvite, accountIdByEmail, addEmergencyContact, checkIn, completeJourney, createHousehold, decideEmergencyAccess, discloseEmergencyAccess, disputeGuardianship, enableChildLocation, fileConcern, grantAccess, inviteAdult, markFound, openMissingIncident, raiseSos, registerDependant, requestEmergencyAccess, reviewGuardianship, revokeGrant, saveBirthDate, startJourney } from "./safetrack";
 import { cancelPlan, featureDeal, markPractice, PRACTICE_TRACKS, practiceSet, recordFocus, recordMemoryRound, requestOpenQuote, respondToQuote, setPlanPrice, subscribe, type PracticeTrack } from "./commercial";
 import { submitHistoryNote } from "./heritage";
@@ -76,6 +92,7 @@ export async function signInAction(form: FormData): Promise<void> {
 
 export async function signUpAction(form: FormData): Promise<void> {
   const locale = localeOf(form);
+  const next = deskPath(locale, text(form, "next"));
   try {
     const result = registerAccount({
       email: text(form, "email"),
@@ -88,10 +105,11 @@ export async function signUpAction(form: FormData): Promise<void> {
       locale,
       ip: await clientIp(),
     });
+    const nextQuery = next ? `&next=${encodeURIComponent(next)}` : "";
     if (process.env.NODE_ENV !== "production" && !process.env.SMTP_HOST) {
-      redirect(`/${locale}/auth/verify?token=${result.verifyToken}&dev=1`);
+      redirect(`/${locale}/auth/verify?token=${result.verifyToken}&dev=1${nextQuery}`);
     }
-    redirect(`/${locale}/auth/verify`);
+    redirect(`/${locale}/auth/verify${next ? `?next=${encodeURIComponent(next)}` : ""}`);
   } catch (error) {
     fail(locale, "/auth/sign-up", error);
   }
@@ -102,7 +120,8 @@ export async function verifyAction(form: FormData): Promise<void> {
   try {
     const verified = verifyEmail(text(form, "token"));
     await writeSession(startSession(verified.id, { ip: await clientIp(), userAgent: (await headers()).get("user-agent") || undefined }));
-    redirect(`/${locale}/account?notice=verified`);
+    const next = deskPath(locale, text(form, "next"));
+    redirect(next || `/${locale}/account?notice=verified`);
   } catch (error) {
     fail(locale, "/auth/verify", error);
   }
@@ -223,10 +242,21 @@ export async function newsAction(form: FormData): Promise<void> {
       tags: text(form, "tags"),
       sourceName: text(form, "sourceName"),
       sourceUrl: text(form, "sourceUrl"),
+      departmentSlug: text(form, "department") || null,
+      metaTitle: text(form, "metaTitle") || null,
+      metaDescription: text(form, "metaDescription") || null,
+      locationId: text(form, "location") || null,
       imageUrl,
     });
-    if (form.get("submitReview") === "yes") submitArticle(user, created.id);
-    redirect(`/${locale}/account?notice=draft-saved`);
+    if (form.get("publishNow") === "yes") {
+      reviewArticle(user, created.id, "publish");
+      redirect(`/${locale}/news/${created.slug}?notice=published`);
+    }
+    if (form.get("submitReview") === "yes") {
+      submitArticle(user, created.id);
+      redirect(`/${locale}/admin/cms?status=in_review&notice=submitted`);
+    }
+    redirect(`/${locale}/admin/cms?status=draft&notice=draft-saved`);
   } catch (error) {
     fail(locale, "/news/new", error);
   }
@@ -239,10 +269,102 @@ export async function reviewNewsAction(form: FormData): Promise<void> {
   try {
     const decision = text(form, "decision");
     if (decision !== "approve" && decision !== "changes" && decision !== "publish" && decision !== "remove" && decision !== "schedule") throw new AppError(400, "Choose a review decision");
-    reviewArticle(user, text(form, "id"), decision, text(form, "note"));
-    redirect(`/${locale}/admin/editorial?notice=saved`);
+    reviewArticle(user, text(form, "id"), decision, text(form, "note"), text(form, "schedule") || null);
+    redirect(`/${locale}/admin/cms?notice=saved`);
   } catch (error) {
-    fail(locale, "/admin/editorial", error);
+    fail(locale, "/admin/cms", error);
+  }
+}
+
+export async function cmsAction(form: FormData): Promise<void> {
+  const locale = localeOf(form);
+  const user = await currentUser();
+  if (!user) redirect(`/${locale}/auth/sign-in`);
+  const back = text(form, "return") || "/admin/cms";
+  try {
+    const intent = text(form, "intent");
+    if (intent === "lifecycle") {
+      const mode = text(form, "mode");
+      const id = text(form, "id");
+      if (mode === "publish") reviewArticle(user, id, "publish");
+      else if (mode === "unpublish") {
+        if (text(form, "confirm") !== "YES") throw new AppError(400, "Confirm unpublishing this post");
+        unpublishArticle(user, id);
+      } else if (mode === "archive") {
+        if (text(form, "confirm") !== "YES") throw new AppError(400, "Confirm archiving this post");
+        archiveArticle(user, id);
+      } else if (mode === "restore") restoreArticle(user, id);
+      else if (mode === "remove") {
+        if (text(form, "confirm") !== "YES") throw new AppError(400, "Confirm deleting this post");
+        reviewArticle(user, id, "remove");
+      } else throw new AppError(400, "Choose a content action");
+      redirect(`/${locale}${back}?notice=saved`);
+    }
+
+    let imageUrl: string | undefined;
+    const file = form.get("image");
+    if (file instanceof File && file.size > 0) imageUrl = (await saveUploadFile(user, file, "image")).url;
+    const mode = text(form, "mode") || "draft";
+    const scheduleRaw = text(form, "schedule");
+    const scheduleIso = scheduleRaw ? new Date(scheduleRaw).toISOString() : null;
+    const headlineExpiresRaw = text(form, "headlineExpires");
+    const headlineExpiresAt = headlineExpiresRaw ? new Date(headlineExpiresRaw).toISOString() : null;
+    const displayType = text(form, "displayType") || "body";
+    const priority = text(form, "priority") || "standard";
+
+    if (intent === "update") {
+      const id = text(form, "id");
+      updateArticle(user, id, {
+        title: text(form, "title"),
+        excerpt: text(form, "excerpt"),
+        body: text(form, "body"),
+        language: text(form, "language") || "en",
+        categorySlug: text(form, "category") || undefined,
+        tags: text(form, "tags"),
+        departmentSlug: text(form, "department") || null,
+        metaTitle: text(form, "metaTitle") || null,
+        metaDescription: text(form, "metaDescription") || null,
+        locationId: text(form, "location") || null,
+        imageUrl,
+        keepPublished: mode === "update-live",
+        displayType,
+        priority,
+        headlineExpiresAt,
+      });
+      if (mode === "submit") submitArticle(user, id);
+      else if (mode === "publish") reviewArticle(user, id, "publish");
+      else if (mode === "schedule") {
+        if (!scheduleIso) throw new AppError(400, "Choose a schedule time");
+        reviewArticle(user, id, "schedule", "Scheduled from CMS", scheduleIso);
+      }
+      redirect(`/${locale}${back}?notice=saved&edit=${encodeURIComponent(id)}`);
+    }
+
+    const created = createArticle(user, {
+      categorySlug: text(form, "category") || "local-news",
+      language: text(form, "language") || "en",
+      title: text(form, "title"),
+      excerpt: text(form, "excerpt"),
+      body: text(form, "body"),
+      tags: text(form, "tags"),
+      departmentSlug: text(form, "department") || null,
+      metaTitle: text(form, "metaTitle") || null,
+      metaDescription: text(form, "metaDescription") || null,
+      locationId: text(form, "location") || null,
+      imageUrl: imageUrl || null,
+      displayType,
+      priority,
+      headlineExpiresAt,
+    });
+    if (mode === "submit") submitArticle(user, created.id);
+    else if (mode === "publish") reviewArticle(user, created.id, "publish");
+    else if (mode === "schedule") {
+      if (!scheduleIso) throw new AppError(400, "Choose a schedule time");
+      reviewArticle(user, created.id, "schedule", "Scheduled from CMS", scheduleIso);
+    }
+    redirect(`/${locale}${back}?notice=saved&status=${mode === "publish" ? "published" : mode === "schedule" ? "scheduled" : mode === "submit" ? "in_review" : "draft"}`);
+  } catch (error) {
+    fail(locale, back, error);
   }
 }
 
@@ -391,6 +513,26 @@ export async function topicAction(form: FormData): Promise<void> {
     redirect(back);
   } catch (error) {
     fail(locale, localPath(locale, back), error);
+  }
+}
+
+export async function newsSubscribeAction(form: FormData): Promise<void> {
+  const locale = localeOf(form);
+  const user = await currentUser();
+  const back = text(form, "return") || `/${locale}`;
+  if (!user) redirect(`/${locale}/auth/sign-up?next=${encodeURIComponent(back)}`);
+  try {
+    const intent = text(form, "intent");
+    if (intent === "unsubscribe") unsubscribeOfficialNews(user.id);
+    else {
+      subscribeOfficialNews(user.id, "in_app");
+      if (form.get("email") === "yes") subscribeOfficialNews(user.id, "email");
+    }
+    const department = text(form, "department");
+    if (department) subscribeAlert(user.id, `desk:${department}`, "in_app");
+    redirect(`${back}${back.includes("?") ? "&" : "?"}notice=${intent === "unsubscribe" ? "unsubscribed" : "subscribed"}`);
+  } catch (error) {
+    fail(locale, back, error);
   }
 }
 
@@ -821,10 +963,41 @@ export async function googleProfileAction(form: FormData): Promise<void> {
   const user = await currentUser();
   if (!user) redirect(`/${locale}/auth/sign-in`);
   try {
-    completeGoogleProfile(user, text(form, "dateOfBirth"), form.get("terms") === "yes", form.get("guardian") === "yes");
+    const email = text(form, "email") || undefined;
+    completeOAuthProfile(user, text(form, "dateOfBirth"), form.get("terms") === "yes", form.get("guardian") === "yes", email);
     redirect(`/${locale}?notice=welcome`);
   } catch (error) {
     fail(locale, "/auth/google-profile", error);
+  }
+}
+
+export async function linkOAuthAction(form: FormData): Promise<void> {
+  const locale = localeOf(form);
+  const user = await currentUser();
+  if (!user) redirect(`/${locale}/auth/sign-in`);
+  const provider = text(form, "provider");
+  if (provider !== "google" && provider !== "facebook") redirect(`/${locale}/account/security?error=${encodeURIComponent("Choose Google or Facebook")}`);
+  try {
+    const ticket = beginOAuthLink(user, text(form, "password"), provider as OAuthProvider);
+    const jar = await cookies();
+    jar.set("rt_oauth_link", ticket, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 600 });
+    redirect(`/api/auth/${provider}?locale=${locale}`);
+  } catch (error) {
+    fail(locale, "/account/security", error);
+  }
+}
+
+export async function unlinkOAuthAction(form: FormData): Promise<void> {
+  const locale = localeOf(form);
+  const user = await currentUser();
+  if (!user) redirect(`/${locale}/auth/sign-in`);
+  try {
+    const provider = text(form, "provider");
+    if (provider !== "google" && provider !== "facebook" && provider !== "apple") throw new Error("Invalid provider");
+    unlinkOAuthProvider(user, provider as OAuthProvider);
+    redirect(`/${locale}/account/security?notice=${encodeURIComponent("Sign-in provider unlinked")}`);
+  } catch (error) {
+    fail(locale, "/account/security", error);
   }
 }
 
@@ -982,7 +1155,7 @@ export async function cityDeskAction(form: FormData): Promise<void> {
   const next = text(form, "return") || "/admin";
   try {
     if (intent === "source") {
-      addNewsSource(user, {
+      const sourceId = addNewsSource(user, {
         name: text(form, "name"),
         kind: text(form, "kind"),
         feedUrl: text(form, "feedUrl"),
@@ -993,10 +1166,30 @@ export async function cityDeskAction(form: FormData): Promise<void> {
         permittedUse: text(form, "permitted"),
         autoBreaking: form.get("breaking") === "yes",
       });
+      const departments = form.getAll("departments").map((item) => String(item));
+      if (departments.length) setSourceDepartments(sourceId, departments);
     } else if (intent === "source-status") setSourceStatus(user, text(form, "id"), text(form, "status") === "active" ? "active" : text(form, "status") === "blocked" ? "blocked" : "paused");
     else if (intent === "ingest") await pullSource(text(form, "id"));
+    else if (intent === "article-breaking") setArticleBreaking(user, text(form, "id"), text(form, "breaking") === "1");
     else if (intent === "review-item") reviewNewsItem(user, text(form, "id"), text(form, "decision") as "publish" | "reject" | "breaking" | "withdraw", text(form, "note"));
     else if (intent === "top-five") scheduleTopFive(user, { date: text(form, "date"), position: Number(text(form, "position")), newsItemId: text(form, "newsItem") || undefined, articleId: text(form, "article") || undefined });
+    else if (intent === "main-editorial") {
+      const mode = text(form, "mode");
+      if (mode === "clear") {
+        if (text(form, "confirm") && text(form, "confirm") !== "REMOVE") throw new AppError(400, "Confirm removal of the homepage main story");
+        clearMainEditorial(user, text(form, "slot") || undefined);
+      }
+      else if (mode === "cancel") cancelScheduledMainEditorial(user, text(form, "slot"));
+      else if (mode === "restore") restoreMainEditorial(user, text(form, "slot"));
+      else {
+        scheduleMainEditorial(user, {
+          articleId: text(form, "article"),
+          startsAt: text(form, "starts") || undefined,
+          endsAt: text(form, "ends") || null,
+          locationId: text(form, "location") || null,
+        });
+      }
+    }
     else if (intent === "block") setBlock(user, text(form, "key"), form.get("enabled") === "yes");
     else if (intent === "complaint") fileComplaint(user, { kind: text(form, "kind"), subjectType: text(form, "subject") || "general", subjectId: text(form, "id"), body: text(form, "body") });
     else if (intent === "weather") recordWeather(user, { summary: text(form, "summary"), sourceName: text(form, "source"), sourceUrl: text(form, "url"), observedAt: text(form, "observed") });
@@ -1236,6 +1429,10 @@ export async function departmentAction(form: FormData): Promise<void> {
     if (intent === "assign") {
       assignDepartment(user, { email: text(form, "email"), section: text(form, "section") });
       redirect(`/${locale}/admin/departments?notice=assigned`);
+    }
+    if (intent === "assign-all") {
+      const result = assignAllManageableDepartments(user, { email: text(form, "email") });
+      redirect(`/${locale}/admin/departments?notice=assigned-all&count=${result.assigned}&total=${result.total}`);
     }
     if (intent === "revoke") {
       revokeDepartment(user, text(form, "userId"), text(form, "section"));

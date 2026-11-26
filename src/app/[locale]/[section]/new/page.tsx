@@ -37,7 +37,65 @@ export default async function NewPage({ params, searchParams }: { params: Promis
 }
 
 function NewsForm({ locale }: { locale: string }) {
-  return <form action={newsAction} className="space-y-3">{common(locale)}<Field label={t(locale, "category")}><select name="category" className={control}>{newsCategories().map((category) => <option key={category.slug} value={category.slug}>{category.name}</option>)}</select></Field><Field label={t(locale, "language")}><select name="language" className={control} defaultValue={locale}><option value="en">English</option><option value="tn">Setswana</option><option value="af">Afrikaans</option></select></Field><Field label={t(locale, "title")}><input name="title" className={control} required /></Field><Field label="Excerpt"><textarea name="excerpt" className={control} required /></Field><Field label="Body"><textarea name="body" className={control} rows={10} required /></Field><Field label="Image"><input name="image" type="file" accept="image/*" /></Field><button className={button} name="submitReview" value="yes">{t(locale, "submit")}</button></form>;
+  return (
+    <form action={newsAction} className="space-y-3">
+      {common(locale)}
+      <Field label={t(locale, "category")}>
+        <select name="category" className={control}>
+          {newsCategories().map((category) => (
+            <option key={category.slug} value={category.slug}>
+              {category.name}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field label="Department">
+        <select name="department" className={control} defaultValue="news">
+          {["news", "community", "sports", "learn", "business", "health", "transport", "voice", "jobs", "agriculture", "notices", "events"].map((slug) => (
+            <option key={slug} value={slug}>
+              {slug}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field label={t(locale, "language")}>
+        <select name="language" className={control} defaultValue={locale}>
+          <option value="en">English</option>
+          <option value="tn">Setswana</option>
+          <option value="af">Afrikaans</option>
+        </select>
+      </Field>
+      <Field label={t(locale, "title")}>
+        <input name="title" className={control} required />
+      </Field>
+      <Field label="Excerpt">
+        <textarea name="excerpt" className={control} required />
+      </Field>
+      <Field label="Body">
+        <textarea name="body" className={control} rows={10} required />
+      </Field>
+      <Field label="Tags">
+        <input name="tags" className={control} placeholder="water, schools, Phokeng" />
+      </Field>
+      <Field label="SEO title">
+        <input name="metaTitle" className={control} />
+      </Field>
+      <Field label="SEO description">
+        <input name="metaDescription" className={control} />
+      </Field>
+      <Field label="Image">
+        <input name="image" type="file" accept="image/*" />
+      </Field>
+      <div className="flex flex-wrap gap-2">
+        <button className={button} name="submitReview" value="yes">
+          {t(locale, "submit")}
+        </button>
+        <button className={button} name="publishNow" value="yes">
+          {t(locale, "publish")}
+        </button>
+      </div>
+    </form>
+  );
 }
 function PostForm({ locale }: { locale: string }) {
   return (

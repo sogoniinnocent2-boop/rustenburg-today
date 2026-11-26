@@ -5,7 +5,7 @@ import path from "node:path";
 import { before, test } from "node:test";
 import { loadUser, registerAccount, verifyEmail, type SessionUser } from "../src/server/auth";
 import { createRecord, listJobs, listRecords, publishRecord } from "../src/server/city";
-import { assignDepartment, canPublishSection, createDepartmentStaff, deskStoryReport, deskStoryReportCsv, revokeDepartment } from "../src/server/departments";
+import { assignAllManageableDepartments, assignDepartment, canPublishSection, createDepartmentStaff, deskItems, deskStoryReport, deskStoryReportCsv, manageableSections, revokeDepartment } from "../src/server/departments";
 import { articleReactions, listArticles, listDepartmentStories, publishDeskArticle, reactToArticle, rememberView } from "../src/server/editorial";
 import { useTestDatabase } from "../src/server/init";
 import { grantRole } from "../src/server/permissions";
@@ -224,4 +224,24 @@ test("one staff member can hold several departments and download a story report"
   assert.throws(() => deskStoryReport(outsider, "news"), /not assigned/i);
   revokeDepartment(admin, healthDesk.id, "news");
   revokeDepartment(admin, healthDesk.id, "events");
+});
+
+test("assign all manageable desks to one account without creating a new login", () => {
+  const desks = manageableSections();
+  assert.ok(desks.length >= 30);
+  const result = assignAllManageableDepartments(admin, { userId: healthDesk.id });
+  assert.equal(result.total, desks.length);
+  assert.ok(result.assigned >= desks.length - 1);
+  const multi = loadUser(healthDesk.id)!;
+  for (const section of desks) {
+    assert.equal(canPublishSection(multi, section), true, section);
+  }
+  assert.equal(canPublishSection(outsider, "news"), false);
+  assert.doesNotThrow(() => deskItems(multi.id, "tv"));
+  assert.doesNotThrow(() => deskItems(multi.id, "podcasts"));
+  for (const section of desks) {
+    revokeDepartment(admin, healthDesk.id, section);
+  }
+  const cleared = loadUser(healthDesk.id)!;
+  assert.equal(canPublishSection(cleared, "news"), false);
 });

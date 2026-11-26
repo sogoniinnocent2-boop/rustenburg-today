@@ -32,7 +32,7 @@ export function cityDiscovery(locationId?: string | null): Discovery {
        FROM articles a
        JOIN article_categories c ON c.id = a.category_id
        LEFT JOIN article_translations en ON en.article_id = a.id AND en.language_code = 'en'
-       WHERE a.status = 'published' AND c.slug = 'breaking-news'
+       WHERE a.status = 'published' AND a.deleted_at IS NULL AND IFNULL(a.is_demo, 0) = 0 AND c.slug = 'breaking-news'
        ORDER BY a.published_at DESC LIMIT 3`,
     ),
     businesses,
@@ -43,8 +43,8 @@ export function cityDiscovery(locationId?: string | null): Discovery {
     jobs: all(`SELECT id, title, job_type, closing_date, employer_id FROM jobs WHERE status = 'published' AND deleted_at IS NULL AND (closing_date IS NULL OR closing_date >= ?)${scopeSql("location_id", locationId)} ORDER BY created_at DESC LIMIT 4`, new Date().toISOString().slice(0, 10), ...scopeParams(locationId)),
     posts: all("SELECT p.id, p.body, pr.display_name FROM community_posts p JOIN profiles pr ON pr.user_id = p.author_id WHERE p.status = 'published' ORDER BY p.created_at DESC LIMIT 3"),
     deals: all("SELECT id, title, description, price_cents, ends_at FROM deals WHERE status = 'published' AND deleted_at IS NULL AND (ends_at IS NULL OR ends_at >= ?) ORDER BY featured DESC, ends_at LIMIT 4", now.toISOString()),
-    podcasts: all("SELECT id, title, slug, description, is_demo FROM podcasts WHERE status = 'published' ORDER BY created_at DESC LIMIT 2"),
-    videos: all("SELECT id, title, slug, description FROM videos WHERE status = 'published' ORDER BY published_at DESC LIMIT 2"),
+    podcasts: all("SELECT id, title, slug, description, is_demo FROM podcasts WHERE status = 'published' AND deleted_at IS NULL AND IFNULL(is_demo, 0) = 0 ORDER BY created_at DESC LIMIT 2"),
+    videos: all("SELECT id, title, slug, description FROM videos WHERE status = 'published' AND deleted_at IS NULL ORDER BY published_at DESC LIMIT 2"),
     notices: all("SELECT id, title, notice_type FROM public_notices WHERE status = 'published' AND deleted_at IS NULL AND (expires_at IS NULL OR expires_at >= ?) ORDER BY created_at DESC LIMIT 4", now.toISOString()),
     places: all(
       `SELECT id, title, summary, category, latitude, longitude, source_name, source_type, source_id, verification_status

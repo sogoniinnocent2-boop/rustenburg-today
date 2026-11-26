@@ -146,6 +146,64 @@ export function revokeDepartment(admin: SessionUser, userId: string, section: st
   audit(admin.id, "department.revoke", "user", userId, { section });
 }
 
+/** Assign every manageable department desk to one existing account (many-to-many). */
+export function assignAllManageableDepartments(
+  admin: SessionUser,
+  input: { userId?: string; email?: string },
+): { userId: string; email: string; assigned: number; alreadyHad: number; total: number } {
+  ensureReady();
+  assertActive(admin);
+  requirePermission(admin.id, "users.manage");
+  const userId = resolveUserId(input.userId, input.email);
+  const user = get<{ email: string; status: string }>("SELECT email, status FROM users WHERE id = ?", userId);
+  if (!user || user.status === "deleted") throw new AppError(404, "Account not found");
+  if (user.status === "suspended") throw new AppError(403, "This account is suspended");
+  const desks = manageableSections();
+  const before = new Set(assignedSections(userId));
+  const stamp = new Date().toISOString();
+  let assigned = 0;
+  transaction(() => {
+    grantRole(userId, "department_editor");
+    for (const section of desks) {
+      const changes = run(
+        "INSERT OR IGNORE INTO department_assignments (user_id, section_slug, created_by, created_at) VALUES (?, ?, ?, ?)",
+        userId,
+        section,
+        admin.id,
+        stamp,
+      );
+      if (changes > 0) assigned += 1;
+    }
+  });
+  audit(admin.id, "department.assign_all", "user", userId, {
+    assigned,
+    alreadyHad: before.size,
+    total: desks.length,
+  });
+  return {
+    userId,
+    email: user.email,
+    assigned,
+    alreadyHad: before.size,
+    total: desks.length,
+  };
+}
+
+export function coverageBySection(): Array<{ section_slug: string; editors: number }> {
+  ensureReady();
+  const desks = manageableSections();
+  const counts = new Map(
+    all<{ section_slug: string; editors: number }>(
+      `SELECT section_slug, COUNT(*) as editors
+       FROM department_assignments a
+       JOIN users u ON u.id = a.user_id
+       WHERE u.status != 'deleted'
+       GROUP BY section_slug`,
+    ).map((row) => [row.section_slug, row.editors]),
+  );
+  return desks.map((section_slug) => ({ section_slug, editors: counts.get(section_slug) || 0 }));
+}
+
 function staffPassword(raw?: string): string {
   if (!raw) return randomToken(12);
   const password = raw.trim();
@@ -332,8 +390,16 @@ export function deskItems(userId: string, section: string): Array<Record<string,
       userId,
     );
   } else if (section === "podcasts") records = all("SELECT id, title, status, updated_at FROM podcasts WHERE creator_id = ? ORDER BY updated_at DESC LIMIT 40", userId);
-  else if (section === "tv") records = all("SELECT id, title, status, updated_at FROM videos WHERE creator_id = ? ORDER BY updated_at DESC LIMIT 40", userId);
-  else if (section === "talent") records = all("SELECT id, stage_name as title, status, updated_at FROM talent_profiles WHERE user_id = ? ORDER BY updated_at DESC LIMIT 40", userId);
+  else if (section === "tv") {
+    records = all(
+      `SELECT v.id, v.title, v.status, v.updated_at
+       FROM videos v
+       JOIN video_channels c ON c.id = v.channel_id
+       WHERE c.owner_id = ? AND v.deleted_at IS NULL
+       ORDER BY v.updated_at DESC LIMIT 40`,
+      userId,
+    );
+  } else if (section === "talent") records = all("SELECT id, stage_name as title, status, updated_at FROM talent_profiles WHERE user_id = ? ORDER BY updated_at DESC LIMIT 40", userId);
   else if (section === "advertising") records = all("SELECT id, title, approval_status as status, updated_at FROM advertising_campaigns WHERE advertiser_id = ? ORDER BY updated_at DESC LIMIT 40", userId);
   else if (section === "radio" || section === "music") records = [];
   else {

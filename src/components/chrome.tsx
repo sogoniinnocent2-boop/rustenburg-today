@@ -115,13 +115,13 @@ export async function Header({ locale, user, path }: { locale: Locale; user: Ses
           </Link>
         </div>
         <PrimaryNav locale={locale} trackerHref={localePath(locale, "/safetrack")} />
-        <div className="flex items-center justify-end gap-1">
+        <div className="bar-tools">
           <Link className="bar-icon bar-search-icon" href={localePath(locale, "/search")} aria-label={t(locale, "search")}>
             <SearchIcon />
           </Link>
           <form action={localePath(locale, "/search")} className="bar-search">
             <label className="sr-only" htmlFor="q">{t(locale, "search")}</label>
-            <input id="q" name="q" placeholder={t(locale, "search.placeholder")} className="w-40 rounded-full border border-[#A9B7C9]/70 bg-white/70 px-4 py-1.5 text-sm text-[#101827]" />
+            <input id="q" name="q" placeholder={t(locale, "search.placeholder")} className="rounded-full border border-[#A9B7C9]/70 bg-white/70 px-4 py-1.5 text-sm text-[#101827]" />
           </form>
           <Link className="bar-icon" href={localePath(locale, user ? "/account/notifications" : "/auth/sign-in")} aria-label={t(locale, "notifications")}>
             <BellIcon />

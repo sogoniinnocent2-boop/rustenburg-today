@@ -1,4 +1,4 @@
-import { headers } from "next/headers";
+﻿import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { isLocale, type Locale } from "@/lib/i18n";
 import { AdminShell } from "@/components/admin-shell";

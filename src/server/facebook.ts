@@ -20,7 +20,7 @@ export function facebookStartUrl(locale: string, state: string): string {
   return url.toString();
 }
 
-export async function exchangeFacebookCode(code: string): Promise<{ sub: string; email: string; emailVerified: boolean; name: string }> {
+export async function exchangeFacebookCode(code: string): Promise<{ sub: string; email: string | null; emailVerified: boolean; name: string }> {
   if (!facebookConfigured()) throw new AppError(503, "Facebook sign-in is not configured");
   const tokenUrl = new URL("https://graph.facebook.com/v19.0/oauth/access_token");
   tokenUrl.searchParams.set("client_id", process.env.FACEBOOK_APP_ID || "");
@@ -37,6 +37,12 @@ export async function exchangeFacebookCode(code: string): Promise<{ sub: string;
   const profileResponse = await fetch(profileUrl);
   if (!profileResponse.ok) throw new AppError(400, "Facebook did not return an account");
   const profile = (await profileResponse.json()) as { id?: string; name?: string; email?: string };
-  if (!profile.id || !profile.email) throw new AppError(400, "Facebook did not return an email");
-  return { sub: profile.id, email: profile.email.toLowerCase(), emailVerified: true, name: profile.name || "Rustenburg resident" };
+  if (!profile.id) throw new AppError(400, "Facebook did not return an account");
+  const email = profile.email ? profile.email.toLowerCase() : null;
+  return {
+    sub: profile.id,
+    email,
+    emailVerified: Boolean(email),
+    name: profile.name || "Rustenburg resident",
+  };
 }

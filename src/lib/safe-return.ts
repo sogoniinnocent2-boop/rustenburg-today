@@ -12,13 +12,17 @@ const EXTRA = new Set([
   "/marketplace/new",
   "/news",
   "/news/new",
+  "/news/official",
   "/business",
   "/business/new",
   "/learn",
   "/learn/new",
 ]);
 
+const ALLOWED_QUERY = new Set(["subscribe=1", "notice=subscribed", "notice=unsubscribed"]);
+
 function allowed(relative: string): boolean {
+  if (relative === "/" || relative === "") return true;
   if (relative === "/admin" || /^\/admin\/[a-z0-9-]+$/.test(relative)) return true;
   if (relative === "/desk" || /^\/desk\/[a-z0-9-]+$/.test(relative)) return true;
   if (relative === "/department" || /^\/department\/[a-z0-9-]+$/.test(relative)) return true;
@@ -29,9 +33,21 @@ function allowed(relative: string): boolean {
 }
 
 export function safeReturn(locale: string, raw: string): string | null {
-  if (!raw || /[\\?#]|\/\/|\.\./.test(raw) || !raw.startsWith("/")) return null;
+  if (!raw || /[\\]|\/\/|\.\./.test(raw) || !raw.startsWith("/")) return null;
+  let path = raw;
+  let query = "";
+  const hash = path.indexOf("#");
+  if (hash >= 0) path = path.slice(0, hash);
+  const qIndex = path.indexOf("?");
+  if (qIndex >= 0) {
+    const q = path.slice(qIndex + 1);
+    if (!ALLOWED_QUERY.has(q)) return null;
+    query = `?${q}`;
+    path = path.slice(0, qIndex);
+  }
   const prefix = `/${locale}`;
-  const relative = raw === prefix || raw.startsWith(`${prefix}/`) ? raw.slice(prefix.length) : raw;
-  if (!relative.startsWith("/") || !allowed(relative)) return null;
-  return `${prefix}${relative}`;
+  const relative = path === prefix || path.startsWith(`${prefix}/`) ? path.slice(prefix.length) || "/" : path;
+  if (!relative.startsWith("/") || !allowed(relative === "" ? "/" : relative)) return null;
+  const clean = relative === "/" ? "" : relative;
+  return `${prefix}${clean}${query}`;
 }

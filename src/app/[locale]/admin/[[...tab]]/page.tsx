@@ -9,15 +9,24 @@ import { modules } from "@/server/city";
 
 export const metadata = { robots: { index: false, follow: false } };
 
-export default async function AdminPage({ params, searchParams }: { params: Promise<{ locale: string; tab?: string[] }>; searchParams: Promise<{ error?: string; notice?: string }> }) {
+export default async function AdminPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ locale: string; tab?: string[] }>;
+  searchParams: Promise<{ error?: string; notice?: string; q?: string; preview?: string; status?: string; department?: string; page?: string; edit?: string }>;
+}) {
   const { locale, tab } = await params;
   const query = await searchParams;
   const active = tab?.[0] || "dashboard";
   if (!adminTabs.includes(active)) notFound();
   const user = await currentUser();
   if (!user) redirect(localePath(locale, "/auth/sign-in?next=/admin"));
-  if (!user.roles.some((role) => ["administrator", "editor", "moderator"].includes(role))) {
-    return <p role="alert" className="rounded-2xl bg-white p-6 dark:bg-white/5">This desk is limited to editors, moderators and administrators.</p>;
+  if (!user.roles.some((role) => ["administrator", "editor", "moderator", "journalist"].includes(role))) {
+    return <p role="alert" className="rounded-2xl bg-white p-6 dark:bg-white/5">This desk is limited to journalists, editors, moderators and administrators.</p>;
+  }
+  if (active === "cms" && !user.roles.some((role) => ["administrator", "editor", "journalist"].includes(role))) {
+    return <p role="alert" className="rounded-2xl bg-white p-6 dark:bg-white/5">Content management is limited to journalists, editors and administrators.</p>;
   }
   const counts = {
     users: count("SELECT COUNT(*) as count FROM users WHERE status = 'active'"),
@@ -34,7 +43,18 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
       <PageIntro locale={locale} title={t(locale, "admin")} summary={active} />
       <Notice error={query.error} notice={query.notice} />
       <nav className="mb-6 flex flex-wrap gap-2 text-sm" aria-label="City desks"><a className={`rounded-full px-3 py-1 ${active === "dashboard" ? "bg-[#101827] text-[#F5F7FA]" : "bg-white"}`} href={`/${locale}/admin`}>Dashboard</a>{adminDeskLinks.map(([key, label]) => <a key={key} className="rounded-full bg-white px-3 py-1" href={`/${locale}/admin/${key}`}>{label}</a>)}</nav>
-      {active !== "dashboard" ? <CityAdmin locale={locale} active={active} /> : (
+      {active !== "dashboard" ? (
+        <CityAdmin
+          locale={locale}
+          active={active}
+          query={query.q}
+          previewId={query.preview}
+          status={query.status}
+          department={query.department}
+          page={query.page ? Number(query.page) : 1}
+          editId={query.edit}
+        />
+      ) : (
       <>
       <div className="mb-8 grid grid-cols-2 gap-3 md:grid-cols-4">
         {Object.entries(counts).map(([key, value]) => <div key={key} className="rounded-2xl bg-white p-4 dark:bg-white/5"><p className="text-xs uppercase text-muted">{key}</p><p className="font-serif text-3xl">{value}</p></div>)}

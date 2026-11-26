@@ -3,18 +3,23 @@ import { cityDeskAction, departmentAction, mediaLibraryAction, moderateAction } 
 import { listPendingPosts } from "@/server/community";
 import { homepageBlocks, licencesDue, listSources, reviewQueue } from "@/server/citydesk";
 import { listAssets } from "@/server/media-library";
-import { listAssignments, manageableSections } from "@/server/departments";
+import { coverageBySection, listAssignments, manageableSections } from "@/server/departments";
 import { sourceDiversityReport } from "@/server/multisource";
+import { getMainEditorialStory, listEligibleMainEditorialArticles, listMainEditorialSlots, previewMainEditorial } from "@/server/newsedition";
+import { ContentCms } from "@/components/content-cms";
+import { localePath } from "@/lib/i18n";
 import { sectionBySlug } from "@/lib/sections";
 import { all } from "@/server/db";
 
-export const adminTabs = ["dashboard", "news", "ingest", "coverage", "editorial", "topfive", "media", "reports", "complaints", "jobs", "ads", "radio", "homepage", "weather", "departments"];
+export const adminTabs = ["dashboard", "cms", "news", "ingest", "coverage", "editorial", "hero", "topfive", "media", "reports", "complaints", "jobs", "ads", "radio", "homepage", "weather", "departments"];
 
 export const adminDeskLinks = [
+  ["cms", "Content"],
   ["news", "News sources"],
   ["ingest", "Ingestion"],
   ["coverage", "Source coverage"],
-  ["editorial", "Editorial desk"],
+  ["editorial", "Wire review"],
+  ["hero", "Main story"],
   ["topfive", "Top five"],
   ["media", "Photographs"],
   ["reports", "Community reports"],
@@ -27,16 +32,36 @@ export const adminDeskLinks = [
   ["departments", "Departments"],
 ];
 
-export function CityAdmin({ locale, active }: { locale: string; active: string }) {
+export function CityAdmin({
+  locale,
+  active,
+  query,
+  previewId,
+  status,
+  department,
+  page,
+  editId,
+}: {
+  locale: string;
+  active: string;
+  query?: string;
+  previewId?: string;
+  status?: string;
+  department?: string;
+  page?: number;
+  editId?: string;
+}) {
   return (
     <div className="space-y-6">
       <nav className="flex flex-wrap gap-2 text-sm" aria-label="City desks">
         {adminDeskLinks.map(([key, label]) => <a key={key} className={`rounded-full px-3 py-1 ${active === key ? "bg-[#101827] text-[#F5F7FA]" : "bg-white"}`} href={`/${locale}/admin/${key}`}>{label}</a>)}
       </nav>
+      {active === "cms" ? <ContentCms locale={locale} status={status} q={query} department={department} page={page} editId={editId} /> : null}
       {active === "news" ? <SourceForm locale={locale} /> : null}
       {active === "ingest" ? <IngestList locale={locale} /> : null}
       {active === "coverage" ? <CoverageDesk /> : null}
       {active === "editorial" ? <EditorialQueue locale={locale} /> : null}
+      {active === "hero" ? <MainEditorialDesk locale={locale} query={query} previewId={previewId} /> : null}
       {active === "topfive" ? <TopForm locale={locale} /> : null}
       {active === "media" ? <MediaDesk locale={locale} /> : null}
       {active === "reports" ? <ReporterQueue locale={locale} /> : null}
@@ -54,6 +79,8 @@ export function CityAdmin({ locale, active }: { locale: string; active: string }
 function DepartmentsDesk({ locale }: { locale: string }) {
   const rows = listAssignments();
   const choices = manageableSections();
+  const coverage = coverageBySection();
+  const missing = coverage.filter((row) => row.editors === 0).map((row) => row.section_slug);
   const people = new Map<string, { user_id: string; email: string; display_name: string; sections: typeof rows }>();
   for (const row of rows) {
     const existing = people.get(row.user_id);
@@ -62,6 +89,18 @@ function DepartmentsDesk({ locale }: { locale: string }) {
   }
   return (
     <div className="grid gap-6 lg:grid-cols-2">
+      {missing.length ? (
+        <div className="rounded-2xl border border-amber-500/40 bg-amber-50 p-4 text-sm dark:bg-amber-950/30 lg:col-span-2">
+          <p className="font-semibold">{missing.length} department{missing.length === 1 ? "" : "s"} still need a staff assignment</p>
+          <p className="mt-1 text-muted">Assign an existing editor to each desk below, or use “Assign all desks” for a central team account. Dedicated staff accounts can still be created later.</p>
+          <p className="mt-2 font-mono text-xs leading-relaxed">{missing.join(", ")}</p>
+        </div>
+      ) : (
+        <div className="rounded-2xl bg-emerald-50 p-4 text-sm dark:bg-emerald-950/30 lg:col-span-2">
+          <p className="font-semibold">All {choices.length} manageable desks have at least one assigned editor.</p>
+          <p className="mt-1 text-muted">Coverage is many-to-many: one login can hold every desk, and each desk can have several editors.</p>
+        </div>
+      )}
       <form action={departmentAction} className="space-y-3 rounded-2xl bg-white p-4 dark:bg-white/5">
         <h2 className="font-serif text-2xl">Create department staff</h2>
         <p className="text-sm">Creates an individual account, assigns one starting department, and writes a one-time password under data/. Add more departments afterwards with the assign form.</p>
@@ -88,10 +127,29 @@ function DepartmentsDesk({ locale }: { locale: string }) {
         </select>
         <button className={button}>Assign department</button>
       </form>
+      <form action={departmentAction} className="space-y-3 rounded-2xl bg-white p-4 dark:bg-white/5 lg:col-span-2">
+        <h2 className="font-serif text-2xl">Assign all desks to one account</h2>
+        <p className="text-sm">Gives an existing login access to every manageable department workspace ({choices.length} desks). Does not create a new password or account. Audit log records the bulk assignment.</p>
+        <HiddenLocale locale={locale} />
+        <input type="hidden" name="intent" value="assign-all" />
+        <input name="email" type="email" required placeholder="Existing account email" className={control} />
+        <button className={button}>Assign all {choices.length} desks</button>
+      </form>
+      <div className="rounded-2xl bg-white p-4 text-sm dark:bg-white/5 lg:col-span-2">
+        <h3 className="font-serif text-xl">Desk coverage</h3>
+        <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          {coverage.map((row) => (
+            <li key={row.section_slug} className="rounded-xl border border-black/5 px-3 py-2 dark:border-white/10">
+              <strong>{row.section_slug}</strong>
+              <p className="text-muted">{row.editors} editor{row.editors === 1 ? "" : "s"}</p>
+            </li>
+          ))}
+        </ul>
+      </div>
       <ul className="space-y-3 lg:col-span-2">
         {people.size ? [...people.values()].map((person) => (
           <li key={person.user_id} className="rounded-2xl bg-white px-4 py-3 text-sm dark:bg-white/5">
-            <p className="font-semibold">{person.display_name} · {person.email}</p>
+            <p className="font-semibold">{person.display_name} · {person.email} · {person.sections.length} desk{person.sections.length === 1 ? "" : "s"}</p>
             <ul className="mt-2 space-y-2">
               {person.sections.map((row) => (
                 <li key={`${row.user_id}-${row.section_slug}`} className="flex flex-wrap items-center justify-between gap-3">
@@ -215,6 +273,18 @@ function SourceForm({ locale }: { locale: string }) {
       <select name="permitted" className={control}><option value="headline_link">Headline and link only</option><option value="licensed_summary">Licensed short summary</option><option value="none">No reuse</option></select>
       <input name="category" placeholder="Category slug" className={control} defaultValue="local-news" />
       <textarea name="rights" required placeholder="What this publisher permits us to store" className={control} />
+      <fieldset className="md:col-span-2 space-y-2 text-sm">
+        <legend className="font-semibold">Map to departments</legend>
+        <p className="text-muted">Choose sections this source may feed. Leave empty to keep it unmapped until an editor assigns it.</p>
+        <div className="flex flex-wrap gap-3">
+          {["news", "business", "sports", "health", "technology", "agriculture", "notices", "voice", "support"].map((slug) => (
+            <label key={slug} className="inline-flex items-center gap-2">
+              <input type="checkbox" name="departments" value={slug} />
+              /{slug}
+            </label>
+          ))}
+        </div>
+      </fieldset>
       <label className="text-sm"><input type="checkbox" name="breaking" value="yes" /> Official emergency feed may publish non-sensitive items</label>
       <button className={button}>Save paused source</button>
     </form>
@@ -327,6 +397,175 @@ function TopForm({ locale }: { locale: string }) {
       <input name="article" className={control} placeholder="Original article id" />
       <button className={button}>Schedule</button>
     </form>
+  );
+}
+
+function MainEditorialDesk({ locale, query, previewId }: { locale: string; query?: string; previewId?: string }) {
+  const slots = listMainEditorialSlots();
+  const live = getMainEditorialStory(null);
+  const originals = listEligibleMainEditorialArticles(query || "");
+  const preview = previewId ? previewMainEditorial(previewId) : null;
+  const liveSlot = slots.find((slot) => String(slot.display_status) === "live");
+  return (
+    <div className="space-y-6">
+      <p className="text-sm">Homepage Main Story Manager. Only published original Rustenburg Today articles are eligible. Removing a placement never deletes the article. External wires cannot be used here.</p>
+
+      <section className="glass-card space-y-3 p-4">
+        <h2 className="font-serif text-2xl">Current homepage main story</h2>
+        {live ? (
+          <div className="flex flex-wrap gap-4">
+            {live.image ? <img src={live.image} alt="" className="h-28 w-40 rounded-xl object-cover" /> : null}
+            <div className="min-w-0 flex-1">
+              <p className="text-xs uppercase tracking-[0.14em] text-emerald">Rustenburg Today original · {live.category}</p>
+              <p className="font-serif text-2xl"><a href={localePath(locale, live.href)}>{live.headline}</a></p>
+              <p className="text-sm">{[live.author, live.published?.slice(0, 16).replace("T", " ")].filter(Boolean).join(" · ")}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <a className={button} href={localePath(locale, "/")}>Open homepage</a>
+                {liveSlot ? (
+                  <form action={cityDeskAction} className="space-y-2">
+                    <HiddenLocale locale={locale} />
+                    <input type="hidden" name="intent" value="main-editorial" />
+                    <input type="hidden" name="mode" value="clear" />
+                    <input type="hidden" name="slot" value={String(liveSlot.id)} />
+                    <input type="hidden" name="return" value="/admin/hero" />
+                    <label className="flex gap-2 text-xs text-muted">
+                      <input type="checkbox" name="confirm" value="REMOVE" required />
+                      Remove from the homepage only. The article stays published.
+                    </label>
+                    <button className={button} formAction={cityDeskAction}>Remove Main Story</button>
+                  </form>
+                ) : null}
+              </div>
+              <p className="mt-2 text-xs text-muted">Removal clears the homepage placement only. The article stays published.</p>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm">No main story is live. The homepage shows the editorial empty state until you add one.</p>
+        )}
+      </section>
+
+      <form method="get" action={`/${locale}/admin/hero`} className="glass-card flex flex-wrap gap-2 p-4">
+        <label className="sr-only" htmlFor="hero-q">Search eligible articles</label>
+        <input id="hero-q" name="q" defaultValue={query || ""} placeholder="Search by headline, author or department" className={`${control} max-w-xl`} />
+        <button className={button}>Search articles</button>
+      </form>
+
+      {preview ? (
+        <section className="glass-card space-y-2 p-4">
+          <h2 className="font-serif text-2xl">Preview</h2>
+          <p className="text-xs uppercase tracking-[0.14em] text-emerald">Rustenburg Today original journalism · {preview.category}</p>
+          <p className="font-serif text-3xl">{preview.headline}</p>
+          {preview.summary ? <p className="text-sm">{preview.summary}</p> : null}
+          <p className="text-sm">{[preview.author, preview.published?.slice(0, 16).replace("T", " ")].filter(Boolean).join(" · ")}</p>
+          <form action={cityDeskAction} className="flex flex-wrap gap-2 pt-2">
+            <HiddenLocale locale={locale} />
+            <input type="hidden" name="intent" value="main-editorial" />
+            <input type="hidden" name="return" value="/admin/hero" />
+            <input type="hidden" name="article" value={preview.key.replace(/^article:/, "")} />
+            <button className={button}>Confirm and publish as Main Story now</button>
+          </form>
+        </section>
+      ) : null}
+
+      <form action={cityDeskAction} className="glass-card grid gap-2 p-4">
+        <HiddenLocale locale={locale} />
+        <input type="hidden" name="intent" value="main-editorial" />
+        <input type="hidden" name="return" value="/admin/hero" />
+        <h2 className="font-serif text-2xl">Add or replace Main Story</h2>
+        <p className="text-sm">Selecting a story replaces any current national main story for the same scope. Confirm the article is approved original journalism.</p>
+        <label className="text-sm font-semibold" htmlFor="main-article">Eligible original article</label>
+        <select id="main-article" name="article" required className={control} defaultValue={previewId || ""}>
+          <option value="" disabled>Select a published original article</option>
+          {originals.map((item) => <option key={item.id} value={item.id}>{item.title} · {item.author} · {item.category}</option>)}
+        </select>
+        <label className="text-sm font-semibold" htmlFor="main-starts">Starts (leave blank for immediately)</label>
+        <input id="main-starts" name="starts" type="datetime-local" className={control} />
+        <label className="text-sm font-semibold" htmlFor="main-ends">Ends (optional)</label>
+        <input id="main-ends" name="ends" type="datetime-local" className={control} />
+        <label className="text-sm font-semibold" htmlFor="main-location">Location scope id (blank = national default)</label>
+        <input id="main-location" name="location" className={control} placeholder="Optional location id" />
+        <div className="flex flex-wrap gap-2">
+          <button className={button}>Save Main Story</button>
+        </div>
+        <p className="text-xs text-muted">Use Preview on a listed article below before confirming a replacement.</p>
+      </form>
+
+      {!originals.length ? <p className="text-sm">No eligible original articles matched this search.</p> : (
+        <ul className="space-y-2">
+          {originals.slice(0, 12).map((item) => (
+            <li key={item.id} className="glass-card flex flex-wrap items-center justify-between gap-2 p-3 text-sm">
+              <span>
+                <strong>{item.title}</strong>
+                {" · "}
+                {item.author}
+                {" · "}
+                {item.category}
+                {item.published_at ? ` · ${item.published_at.slice(0, 16).replace("T", " ")}` : ""}
+              </span>
+              <a className={button} href={`/${locale}/admin/hero?preview=${encodeURIComponent(item.id)}${query ? `&q=${encodeURIComponent(query)}` : ""}`}>Preview</a>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <section className="space-y-2">
+        <h2 className="font-serif text-2xl">Main story history</h2>
+        {slots.length ? (
+          <ul className="space-y-2">
+            {slots.map((slot) => (
+              <li key={String(slot.id)} className="glass-card flex flex-wrap items-center justify-between gap-2 p-4 text-sm">
+                <span>
+                  <strong>{String(slot.headline)}</strong>
+                  {" · "}
+                  {String(slot.display_status || slot.status)}
+                  {" · "}
+                  {slot.location_name ? String(slot.location_name) : "National"}
+                  {" · "}
+                  {String(slot.starts_at).slice(0, 16).replace("T", " ")}
+                  {slot.ends_at ? ` – ${String(slot.ends_at).slice(0, 16).replace("T", " ")}` : ""}
+                  {" · "}
+                  {String(slot.editor_name)}
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {String(slot.display_status) === "live" || String(slot.status) === "active" ? (
+                    <form action={cityDeskAction}>
+                      <HiddenLocale locale={locale} />
+                      <input type="hidden" name="intent" value="main-editorial" />
+                      <input type="hidden" name="mode" value="clear" />
+                      <input type="hidden" name="slot" value={String(slot.id)} />
+                      <input type="hidden" name="return" value="/admin/hero" />
+                      <button className={button}>Remove</button>
+                    </form>
+                  ) : null}
+                  {String(slot.display_status) === "scheduled" || String(slot.status) === "scheduled" ? (
+                    <form action={cityDeskAction}>
+                      <HiddenLocale locale={locale} />
+                      <input type="hidden" name="intent" value="main-editorial" />
+                      <input type="hidden" name="mode" value="cancel" />
+                      <input type="hidden" name="slot" value={String(slot.id)} />
+                      <input type="hidden" name="return" value="/admin/hero" />
+                      <button className={button}>Cancel schedule</button>
+                    </form>
+                  ) : null}
+                  {["cleared", "replaced", "cancelled", "expired"].includes(String(slot.status)) ? (
+                    <form action={cityDeskAction}>
+                      <HiddenLocale locale={locale} />
+                      <input type="hidden" name="intent" value="main-editorial" />
+                      <input type="hidden" name="mode" value="restore" />
+                      <input type="hidden" name="slot" value={String(slot.id)} />
+                      <input type="hidden" name="return" value="/admin/hero" />
+                      <button className={button}>Restore as Main Story</button>
+                    </form>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm">No Main Story history yet.</p>
+        )}
+      </section>
+    </div>
   );
 }
 

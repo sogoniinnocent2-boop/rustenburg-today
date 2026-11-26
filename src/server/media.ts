@@ -89,14 +89,25 @@ export function followMedia(user: SessionUser, mediaType: string, mediaId: strin
 
 export function listPodcasts(): Array<Record<string, unknown>> {
   ensureReady();
-  return all("SELECT id, title, slug, description, artwork_url, programme_key, is_demo FROM podcasts WHERE status = 'published' AND deleted_at IS NULL ORDER BY created_at DESC");
+  return all(
+    `SELECT id, title, slug, description, artwork_url, programme_key, is_demo
+     FROM podcasts
+     WHERE status = 'published' AND deleted_at IS NULL AND IFNULL(is_demo, 0) = 0
+     ORDER BY created_at DESC`,
+  );
 }
 
 export function getPodcast(slug: string): Record<string, unknown> | null {
   ensureReady();
-  const show = get<Record<string, unknown>>("SELECT * FROM podcasts WHERE slug = ? AND status = 'published' AND deleted_at IS NULL", slug);
+  const show = get<Record<string, unknown>>(
+    "SELECT * FROM podcasts WHERE slug = ? AND status = 'published' AND deleted_at IS NULL AND IFNULL(is_demo, 0) = 0",
+    slug,
+  );
   if (!show) return null;
-  const episodes = all("SELECT id, title, slug, description, audio_url, transcript, duration_seconds, download_allowed, published_at, is_demo FROM podcast_episodes WHERE podcast_id = ? AND status = 'published' ORDER BY published_at DESC", show.id);
+  const episodes = all(
+    "SELECT id, title, slug, description, audio_url, transcript, duration_seconds, download_allowed, published_at, is_demo FROM podcast_episodes WHERE podcast_id = ? AND status = 'published' AND IFNULL(is_demo, 0) = 0 ORDER BY published_at DESC",
+    show.id,
+  );
   return { ...show, episodes };
 }
 

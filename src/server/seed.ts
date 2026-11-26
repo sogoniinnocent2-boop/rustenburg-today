@@ -3,22 +3,9 @@ import { all, get, newId, run, writeBootstrapSecret } from "./db";
 import { syncAccessCatalog, grantRole } from "./permissions";
 import { indexDocument, putSetting } from "./store";
 
-const NEWS = [
-  ["Breaking news", "breaking-news"],
-  ["Local news", "local-news"],
-  ["Municipal", "municipal"],
-  ["Crime and safety", "crime-safety"],
-  ["Traffic", "traffic"],
-  ["Business and mining", "business-mining"],
-  ["Education", "education"],
-  ["Sports", "sports"],
-  ["Health", "health"],
-  ["Politics", "politics"],
-  ["Investigations", "investigations"],
-  ["Opinion", "opinion"],
-  ["Community", "community"],
-  ["Announcements", "announcements"],
-];
+import { ARTICLE_CATEGORY_SEEDS } from "@/lib/editorial-categories";
+
+const NEWS = ARTICLE_CATEGORY_SEEDS;
 
 const PLACES: Array<[string, string, string, number, number]> = [
   ["Rustenburg", "rustenburg", "city", -25.6544, 27.2429],

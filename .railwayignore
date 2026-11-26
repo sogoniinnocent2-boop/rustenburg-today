@@ -1,0 +1,14 @@
+.git
+.idea
+.next
+.next-build
+.next-firebase
+node_modules
+data
+.env
+.env.local
+*.log
+build-log*.txt
+evidence
+agent-tools
+.cursor

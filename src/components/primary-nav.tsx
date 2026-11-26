@@ -61,6 +61,8 @@ export function PrimaryNav({ locale, trackerHref }: { locale: Locale; trackerHre
       <details className="nav-drop">
         <summary className="nav-pill bar-link">{t(locale, "nav.more")}</summary>
         <div className="nav-drop-panel glass-card max-h-80 overflow-auto text-graphite dark:text-cloud">
+          <Link className="nav-link" href={localePath(locale, "/property")}>{t(locale, "nav.property")}</Link>
+          <Link className="nav-link" href={localePath(locale, "/tickets")}>{t(locale, "nav.tickets")}</Link>
           <Link className="nav-link" href={localePath(locale, "/safetrack")}>{t(locale, "nav.safetrack")}</Link>
           <Link className="nav-link" href={localePath(locale, "/briefing")}>{t(locale, "nav.briefing")}</Link>
           <Link className="nav-link" href={localePath(locale, "/edition")}>{t(locale, "nav.edition")}</Link>

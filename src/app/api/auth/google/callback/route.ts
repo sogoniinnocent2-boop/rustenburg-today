@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { acceptGoogleProfile, exchangeGoogleCode } from "@/server/google";
+import { exchangeGoogleCode } from "@/server/google";
 import { ensureReady } from "@/server/init";
+import { acceptOAuthProfile, completeOAuthLink } from "@/server/oauth";
 
 export const runtime = "nodejs";
 
@@ -10,7 +11,8 @@ export async function GET(request: NextRequest) {
   const state = url.searchParams.get("state") || "";
   const [localePart, nonce] = state.split(".");
   const locale = localePart === "af" || localePart === "tn" ? localePart : "en";
-  const back = (message: string) => NextResponse.redirect(new URL(`/${locale}/auth/sign-in?error=${encodeURIComponent(message)}`, request.url));
+  const back = (message: string, path = `/auth/sign-in`) =>
+    NextResponse.redirect(new URL(`/${locale}${path}?error=${encodeURIComponent(message)}`, request.url));
   if (url.searchParams.get("error")) return back("Google sign-in was cancelled");
   const expected = request.cookies.get("rt_google_state")?.value;
   if (!nonce || !expected || nonce !== expected) return back("This Google sign-in expired. Start again.");
@@ -18,13 +20,38 @@ export async function GET(request: NextRequest) {
   if (!code) return back("Google did not return a sign-in code");
   try {
     const profile = await exchangeGoogleCode(code);
-    const result = acceptGoogleProfile(profile, locale, { ip: request.headers.get("x-forwarded-for") || undefined, userAgent: request.headers.get("user-agent") || undefined });
+    const shared = {
+      sub: profile.sub,
+      email: profile.email,
+      emailVerified: profile.email_verified,
+      name: profile.name,
+    };
+    const linkTicket = request.cookies.get("rt_oauth_link")?.value;
+    if (linkTicket) {
+      completeOAuthLink(linkTicket, "google", shared);
+      const response = NextResponse.redirect(new URL(`/${locale}/account/security?notice=${encodeURIComponent("Google linked")}`, request.url));
+      response.cookies.set("rt_google_state", "", { path: "/", maxAge: 0 });
+      response.cookies.set("rt_oauth_link", "", { path: "/", maxAge: 0 });
+      return response;
+    }
+    const result = acceptOAuthProfile("google", shared, locale, {
+      ip: request.headers.get("x-forwarded-for") || undefined,
+      userAgent: request.headers.get("user-agent") || undefined,
+    });
     const next = result.next === "profile" ? `/${locale}/auth/google-profile` : `/${locale}`;
     const response = NextResponse.redirect(new URL(next, request.url));
-    response.cookies.set("rt_session", result.cookie, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 14 * 24 * 60 * 60 });
+    response.cookies.set("rt_session", result.cookie, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 14 * 24 * 60 * 60,
+    });
     response.cookies.set("rt_google_state", "", { path: "/", maxAge: 0 });
     return response;
   } catch (error) {
-    return back(error instanceof Error ? error.message : "Google sign-in failed");
+    const message = error instanceof Error ? error.message : "Google sign-in failed";
+    const linkTicket = request.cookies.get("rt_oauth_link")?.value;
+    return back(message, linkTicket ? "/account/security" : "/auth/sign-in");
   }
 }

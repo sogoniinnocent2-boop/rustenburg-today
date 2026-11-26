@@ -100,6 +100,73 @@ function applyMigrations(db: DatabaseSync): void {
   applyArticleVideo(db);
   applyArticleReactions(db);
   applyMultiSource(db);
+  applyEditorialNews(db);
+  applyCommunityProfiles(db);
+  applyMainEditorial(db);
+  applyArticleLocation(db);
+  applyNewsDisplay(db);
+}
+
+function applyArticleLocation(db: DatabaseSync): void {
+  const applied = new Set((db.prepare("SELECT id FROM schema_migrations").all() as Array<{ id: string }>).map((row) => row.id));
+  if (applied.has("0020_article_location")) return;
+  addColumn(db, "articles", "location_id", "TEXT");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_articles_location ON articles(location_id, status, published_at)");
+  db.prepare("INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)").run("0020_article_location", new Date().toISOString());
+}
+
+/** Headline vs body display type + editorial priority for all-department news publishing. */
+function applyNewsDisplay(db: DatabaseSync): void {
+  const applied = new Set((db.prepare("SELECT id FROM schema_migrations").all() as Array<{ id: string }>).map((row) => row.id));
+  if (applied.has("0021_news_display")) return;
+  addColumn(db, "articles", "news_display_type", "TEXT NOT NULL DEFAULT 'body'");
+  addColumn(db, "articles", "editorial_priority", "TEXT NOT NULL DEFAULT 'standard'");
+  addColumn(db, "articles", "headline_expires_at", "TEXT");
+  db.exec(`
+    UPDATE articles SET news_display_type = 'headline' WHERE is_featured = 1 AND IFNULL(news_display_type, 'body') = 'body';
+    UPDATE articles SET editorial_priority = 'breaking' WHERE is_breaking = 1 AND IFNULL(editorial_priority, 'standard') = 'standard';
+    CREATE INDEX IF NOT EXISTS idx_articles_display ON articles(news_display_type, status, published_at);
+    CREATE INDEX IF NOT EXISTS idx_articles_priority ON articles(editorial_priority, status, published_at);
+  `);
+  db.prepare("INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)").run("0021_news_display", new Date().toISOString());
+}
+
+function applyCommunityProfiles(db: DatabaseSync): void {
+  const applied = new Set((db.prepare("SELECT id FROM schema_migrations").all() as Array<{ id: string }>).map((row) => row.id));
+  if (applied.has("0018_community_profiles")) return;
+  addColumn(db, "profiles", "cover_url", "TEXT");
+  addColumn(db, "profiles", "website_url", "TEXT");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_community_posts_location ON community_posts(location_id, status, created_at);");
+  db.prepare("INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)").run("0018_community_profiles", new Date().toISOString());
+}
+
+function applyMainEditorial(db: DatabaseSync): void {
+  const applied = new Set((db.prepare("SELECT id FROM schema_migrations").all() as Array<{ id: string }>).map((row) => row.id));
+  if (applied.has("0019_main_editorial")) return;
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS main_editorial_slots (
+      id TEXT PRIMARY KEY,
+      article_id TEXT NOT NULL REFERENCES articles(id),
+      location_id TEXT REFERENCES locations(id),
+      starts_at TEXT NOT NULL,
+      ends_at TEXT,
+      editor_id TEXT NOT NULL REFERENCES users(id),
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_main_editorial_active ON main_editorial_slots(status, starts_at, ends_at);
+    CREATE INDEX IF NOT EXISTS idx_main_editorial_location ON main_editorial_slots(location_id, status);
+  `);
+  db.prepare("INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)").run("0019_main_editorial", new Date().toISOString());
+}
+
+function applyEditorialNews(db: DatabaseSync): void {
+  const applied = new Set((db.prepare("SELECT id FROM schema_migrations").all() as Array<{ id: string }>).map((row) => row.id));
+  if (applied.has("0017_editorial_news")) return;
+  addColumn(db, "articles", "is_breaking", "INTEGER NOT NULL DEFAULT 0");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_articles_breaking ON articles(is_breaking, status);");
+  db.prepare("INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)").run("0017_editorial_news", new Date().toISOString());
 }
 
 function applyMultiSource(db: DatabaseSync): void {

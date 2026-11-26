@@ -14,14 +14,25 @@ import { locationAction } from "@/server/actions";
 import { liveCampaigns } from "@/server/commerce";
 import { approvedHero } from "@/server/media-library";
 import { listLocationChoices } from "@/server/platform";
+import { getMainEditorialStory, listHeadlineStories, listOfficialStories } from "@/server/newsedition";
+import { MainEditorialStory } from "@/components/main-editorial";
+import { OfficialStories } from "@/components/official-stories";
+import { NewsSubscribe } from "@/components/news-subscribe";
+import { currentUser } from "@/server/session";
 
-export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
+export default async function HomePage({ params, searchParams }: { params: Promise<{ locale: string }>; searchParams?: Promise<{ subscribe?: string; notice?: string }> }) {
   const { locale } = await params;
+  const query = searchParams ? await searchParams : {};
   const locationId = (await cookies()).get("rt_location")?.value || null;
   const places = listLocationChoices();
   const selected = places.find((item) => item.id === locationId) || null;
   const city = cityDiscovery(selected?.id || null);
   const edition = homeEdition();
+  const mainEditorial = getMainEditorialStory(selected?.id || null);
+  const official = listOfficialStories({ limit: 6, displayType: "body" });
+  const headlines = listHeadlineStories({ limit: 5 });
+  const user = await currentUser();
+  const subscribePrompt = query.subscribe === "1";
   const hero = approvedHero();
   const scenes: HeroScene[] = hero
     ? [{ id: hero.id, src: hero.url, alt: hero.alt, credit: hero.credit, label: "Editor's photograph", place: "Approved for the homepage", href: "/news", note: "Placed by the newsroom. It is shown only while the permission is current.", category: "Newsroom", when: "Current permission", scope: "Shown only while the editor's permission is current." }, ...heroScenes]
@@ -61,7 +72,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
               </select>
               <button>{t(locale, "home.show")}</button>
             </form>
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="cine-shortcuts">
               {shortcuts.map(([href, label]) => <Link key={href} className="cine-chip" href={localePath(locale, href)}>{t(locale, label)}</Link>)}
             </div>
           </div>
@@ -69,22 +80,32 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         </div>
       </HeroStage>
 
+      <MainEditorialStory locale={locale} story={mainEditorial} />
+
+      {headlines.length ? (
+        <OfficialStories locale={locale} stories={headlines} total={headlines.length} variant="headline" />
+      ) : null}
+
+      <OfficialStories locale={locale} stories={official.items} total={official.total} variant="official" />
+
+      <NewsSubscribe locale={locale} userId={user?.id} highlight={subscribePrompt} />
+
       <p className="edition-bar"><span>{t(locale, "home.editionBar")} · {editionDate}</span><span>{t(locale, "home.independent")}</span></p>
 
       <section>
-        <div className="mb-3 flex items-end justify-between gap-3">
+        <div className="home-section-head">
           <h2 className="font-serif text-4xl">{t(locale, "home.inView")}</h2>
-          <p className="max-w-sm text-right text-xs text-[#4c5968]">{t(locale, "home.inViewNote")}</p>
+          <p className="text-right text-xs text-[#4c5968]">{t(locale, "home.inViewNote")}</p>
         </div>
         <ViewRail cards={heroScenes} locale={locale} />
       </section>
 
-      {slides.length ? <TopFive stories={slides} title={edition.editorial ? t(locale, "home.topStories") : t(locale, "home.latestOfficial")} /> : (
+      {slides.length ? <TopFive stories={slides} title={edition.editorial ? t(locale, "home.topStories") : t(locale, "home.latestWires")} /> : (
         <p className="text-sm">{t(locale, "home.noTop")}</p>
       )}
 
       <section>
-        <div className="mb-4 flex items-baseline justify-between">
+        <div className="home-section-head">
           <h2 className="font-serif text-4xl">{t(locale, "home.latestNews")}</h2>
           <Link className="text-sm font-semibold text-[#1d4e89]" href={localePath(locale, "/news")}>{t(locale, "home.openNewsroom")}</Link>
         </div>
@@ -122,7 +143,9 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
       </section>
 
       <section>
-        <h2 className="mb-3 font-serif text-3xl">{t(locale, "home.explore")}</h2>
+        <div className="home-section-head">
+          <h2 className="font-serif text-3xl">{t(locale, "home.explore")}</h2>
+        </div>
         <div className="explore-grid">
           {explore.map(([href, label, note, icon]) => (
             <Link key={href} className="explore-tile" href={localePath(locale, href)}>
@@ -169,7 +192,9 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
       </section>
 
       <section>
-        <h2 className="mb-3 font-serif text-3xl">{t(locale, "home.discoverMore")}</h2>
+        <div className="home-section-head">
+          <h2 className="font-serif text-3xl">{t(locale, "home.discoverMore")}</h2>
+        </div>
         <div className="explore-grid">
           {more.map(([href, label, icon]) => (
             <Link key={href} className="explore-tile" href={localePath(locale, href)}>

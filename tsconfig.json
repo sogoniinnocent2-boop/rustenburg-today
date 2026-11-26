@@ -33,10 +33,11 @@
   "include": [
     "**/*.ts",
     "**/*.tsx",
+    ".next-firebase/types/**/*.ts",
     ".next-prod/types/**/*.ts",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    ".next-firebase/types/**/*.ts"
+    ".next-build/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

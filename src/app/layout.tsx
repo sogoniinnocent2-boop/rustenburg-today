@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { cookies, headers } from "next/headers";
 import { Newsreader, Source_Sans_3 } from "next/font/google";
 import { FlowMemory } from "@/components/flow";
 import { SubmitGuard } from "@/components/submit-guard";
@@ -7,7 +6,7 @@ import { BrandLogo } from "@/components/brand-logo";
 import { t } from "@/lib/i18n";
 import "./globals.css";
 
-const flowBoot = `try{if(sessionStorage.getItem("rt-flow")||matchMedia("(prefers-reduced-motion: reduce)").matches)document.documentElement.classList.add("flow-skip")}catch(e){}`;
+const flowBoot = `try{if(sessionStorage.getItem("rt-flow")||matchMedia("(prefers-reduced-motion: reduce)").matches)document.documentElement.classList.add("flow-skip");var m=document.cookie.match(/(?:^|; )rt_theme=([^;]*)/);if(m&&m[1]==="dark")document.documentElement.classList.add("dark")}catch(e){}`;
 
 const serif = Newsreader({ subsets: ["latin", "latin-ext"], variable: "--font-newsreader", display: "swap" });
 const sans = Source_Sans_3({ subsets: ["latin", "latin-ext"], variable: "--font-source-sans", display: "swap" });
@@ -28,12 +27,9 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const locale = (await headers()).get("x-rt-locale") || "en";
-  const theme = (await cookies()).get("rt_theme")?.value === "dark" ? "dark" : "";
-  const lang = locale === "af" ? "af" : locale === "tn" ? "tn" : "en";
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang={lang} className={`${serif.variable} ${sans.variable} ${theme}`} suppressHydrationWarning>
+    <html lang="en" className={`${serif.variable} ${sans.variable}`} suppressHydrationWarning>
       <body>
         <script dangerouslySetInnerHTML={{ __html: flowBoot }} />
         <FlowMemory />
@@ -42,7 +38,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <div className="brand-mark brand-mark-logo">
             <div className="brand-orbit" />
             <BrandLogo size="splash" decorative />
-            <p className="brand-line">{t(lang, "tagline")}</p>
+            <p className="brand-line">{t("en", "tagline")}</p>
           </div>
         </div>
         {children}
