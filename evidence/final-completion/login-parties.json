@@ -1,0 +1,364 @@
+{
+  "base": "https://www.rustenburgtoday.co.za",
+  "stamped": "2026-11-26T23:14:46.306Z",
+  "http": {
+    "pass": true,
+    "results": [
+      {
+        "party": "admin",
+        "email": "admin@rustenburg.today",
+        "file": "bootstrap-admin.txt",
+        "role": "administrator",
+        "overall": "PASS",
+        "checks": {
+          "login": "PASS",
+          "loginDetail": {
+            "status": 303,
+            "location": "/en/admin",
+            "hasSession": true,
+            "error": null
+          },
+          "dashboard": "PASS",
+          "dashboardDetail": {
+            "status": 200,
+            "hasExpectedUi": true,
+            "stillShowingLogin": false
+          },
+          "adminControls": "PASS",
+          "adminControlsDetail": {
+            "status": 200,
+            "hasAssignAll": true
+          },
+          "wrongPasswordRejected": "PASS",
+          "wrongPasswordDetail": {
+            "status": 303,
+            "error": "Email or password is incorrect",
+            "sharedProbe": true
+          }
+        }
+      },
+      {
+        "party": "desk-business",
+        "email": "thato.selokwane@rustenburgtoday.co.za",
+        "file": "department-business-thato-selokwane.txt",
+        "role": "department_editor",
+        "overall": "PASS",
+        "checks": {
+          "login": "PASS",
+          "loginDetail": {
+            "status": 303,
+            "location": "/en/department",
+            "hasSession": true,
+            "error": null
+          },
+          "dashboard": "PASS",
+          "dashboardDetail": {
+            "status": 200,
+            "hasExpectedUi": true,
+            "stillShowingLogin": false
+          },
+          "deskRoutes": "PASS",
+          "deskRoutesDetail": [
+            {
+              "path": "/en/department/music",
+              "status": 200,
+              "ok": true
+            },
+            {
+              "path": "/en/department/news",
+              "status": 200,
+              "ok": true
+            },
+            {
+              "path": "/en/department/podcasts",
+              "status": 200,
+              "ok": true
+            }
+          ],
+          "wrongPasswordRejected": "PASS",
+          "wrongPasswordDetail": {
+            "status": 303,
+            "error": "Email or password is incorrect",
+            "sharedProbe": true
+          }
+        }
+      },
+      {
+        "party": "desk-events",
+        "email": "innocent.sogoni@rustenburgtoday.co.za",
+        "file": "department-events-innocent-sogoni.txt",
+        "role": "department_editor",
+        "overall": "PASS",
+        "checks": {
+          "login": "PASS",
+          "loginDetail": {
+            "status": 303,
+            "location": "/en/department",
+            "hasSession": true,
+            "error": null
+          },
+          "dashboard": "PASS",
+          "dashboardDetail": {
+            "status": 200,
+            "hasExpectedUi": true,
+            "stillShowingLogin": false
+          },
+          "deskRoutes": "PASS",
+          "deskRoutesDetail": [
+            {
+              "path": "/en/department/music",
+              "status": 200,
+              "ok": true
+            },
+            {
+              "path": "/en/department/news",
+              "status": 200,
+              "ok": true
+            },
+            {
+              "path": "/en/department/podcasts",
+              "status": 200,
+              "ok": true
+            }
+          ],
+          "wrongPasswordRejected": "PASS",
+          "wrongPasswordDetail": {
+            "status": 303,
+            "error": "Email or password is incorrect",
+            "sharedProbe": true
+          }
+        }
+      },
+      {
+        "party": "desk-news",
+        "email": "thabo.soke@rustenburgtoday.co.za",
+        "file": "department-news-thabo-soke.txt",
+        "role": "department_editor",
+        "overall": "PASS",
+        "checks": {
+          "login": "PASS",
+          "loginDetail": {
+            "status": 303,
+            "location": "/en/department",
+            "hasSession": true,
+            "error": null
+          },
+          "dashboard": "PASS",
+          "dashboardDetail": {
+            "status": 200,
+            "hasExpectedUi": true,
+            "stillShowingLogin": false
+          },
+          "deskRoutes": "PASS",
+          "deskRoutesDetail": [
+            {
+              "path": "/en/department/music",
+              "status": 200,
+              "ok": true
+            },
+            {
+              "path": "/en/department/news",
+              "status": 200,
+              "ok": true
+            },
+            {
+              "path": "/en/department/podcasts",
+              "status": 200,
+              "ok": true
+            }
+          ],
+          "wrongPasswordRejected": "PASS",
+          "wrongPasswordDetail": {
+            "status": 303,
+            "error": "Email or password is incorrect",
+            "sharedProbe": true
+          }
+        }
+      }
+    ]
+  },
+  "coverage": {
+    "parties": [
+      {
+        "email": "admin@rustenburg.today",
+        "status": "active",
+        "roles": [
+          "administrator"
+        ],
+        "deskCount": 0,
+        "desks": []
+      },
+      {
+        "email": "thato.selokwane@rustenburgtoday.co.za",
+        "status": "active",
+        "roles": [
+          "contributor",
+          "department_editor",
+          "reader",
+          "resident"
+        ],
+        "deskCount": 32,
+        "desks": [
+          "advertising",
+          "agriculture",
+          "business",
+          "community",
+          "competitions",
+          "creators",
+          "deals",
+          "events",
+          "faith",
+          "family",
+          "food",
+          "health",
+          "history",
+          "jobs",
+          "learn",
+          "marketplace",
+          "music",
+          "news",
+          "notices",
+          "podcasts",
+          "property",
+          "radio",
+          "services",
+          "sports",
+          "support",
+          "talent",
+          "technology",
+          "tourism",
+          "transport",
+          "tv",
+          "voice",
+          "youth"
+        ]
+      },
+      {
+        "email": "innocent.sogoni@rustenburgtoday.co.za",
+        "status": "active",
+        "roles": [
+          "contributor",
+          "department_editor",
+          "reader",
+          "resident"
+        ],
+        "deskCount": 32,
+        "desks": [
+          "advertising",
+          "agriculture",
+          "business",
+          "community",
+          "competitions",
+          "creators",
+          "deals",
+          "events",
+          "faith",
+          "family",
+          "food",
+          "health",
+          "history",
+          "jobs",
+          "learn",
+          "marketplace",
+          "music",
+          "news",
+          "notices",
+          "podcasts",
+          "property",
+          "radio",
+          "services",
+          "sports",
+          "support",
+          "talent",
+          "technology",
+          "tourism",
+          "transport",
+          "tv",
+          "voice",
+          "youth"
+        ]
+      },
+      {
+        "email": "thabo.soke@rustenburgtoday.co.za",
+        "status": "active",
+        "roles": [
+          "contributor",
+          "department_editor",
+          "reader",
+          "resident"
+        ],
+        "deskCount": 32,
+        "desks": [
+          "advertising",
+          "agriculture",
+          "business",
+          "community",
+          "competitions",
+          "creators",
+          "deals",
+          "events",
+          "faith",
+          "family",
+          "food",
+          "health",
+          "history",
+          "jobs",
+          "learn",
+          "marketplace",
+          "music",
+          "news",
+          "notices",
+          "podcasts",
+          "property",
+          "radio",
+          "services",
+          "sports",
+          "support",
+          "talent",
+          "technology",
+          "tourism",
+          "transport",
+          "tv",
+          "voice",
+          "youth"
+        ]
+      }
+    ],
+    "uniqueAssignedDesks": 32,
+    "allDesks": [
+      "advertising",
+      "agriculture",
+      "business",
+      "community",
+      "competitions",
+      "creators",
+      "deals",
+      "events",
+      "faith",
+      "family",
+      "food",
+      "health",
+      "history",
+      "jobs",
+      "learn",
+      "marketplace",
+      "music",
+      "news",
+      "notices",
+      "podcasts",
+      "property",
+      "radio",
+      "services",
+      "sports",
+      "support",
+      "talent",
+      "technology",
+      "tourism",
+      "transport",
+      "tv",
+      "voice",
+      "youth"
+    ]
+  },
+  "verdict": "PASS"
+}

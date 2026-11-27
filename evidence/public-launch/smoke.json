@@ -1,0 +1,198 @@
+{
+  "base": "https://www.rustenburgtoday.co.za",
+  "checkedAt": "2026-11-26T22:00:06.636Z",
+  "results": [
+    {
+      "route": "/en",
+      "status": 200,
+      "location": "",
+      "demoLeak": false,
+      "stackTrace": false,
+      "paymentsHonesty": null,
+      "oauthHonesty": null,
+      "emptyOfficial": true
+    },
+    {
+      "route": "/en/news",
+      "status": 200,
+      "location": "",
+      "demoLeak": false,
+      "stackTrace": false,
+      "paymentsHonesty": null,
+      "oauthHonesty": null,
+      "emptyOfficial": null
+    },
+    {
+      "route": "/en/news/official",
+      "status": 200,
+      "location": "",
+      "demoLeak": false,
+      "stackTrace": false,
+      "paymentsHonesty": null,
+      "oauthHonesty": null,
+      "emptyOfficial": true
+    },
+    {
+      "route": "/en/marketplace",
+      "status": 200,
+      "location": "",
+      "demoLeak": false,
+      "stackTrace": false,
+      "paymentsHonesty": true,
+      "oauthHonesty": null,
+      "emptyOfficial": null
+    },
+    {
+      "route": "/en/events",
+      "status": 200,
+      "location": "",
+      "demoLeak": false,
+      "stackTrace": false,
+      "paymentsHonesty": null,
+      "oauthHonesty": null,
+      "emptyOfficial": null
+    },
+    {
+      "route": "/en/jobs",
+      "status": 200,
+      "location": "",
+      "demoLeak": false,
+      "stackTrace": false,
+      "paymentsHonesty": null,
+      "oauthHonesty": null,
+      "emptyOfficial": null
+    },
+    {
+      "route": "/en/learn",
+      "status": 200,
+      "location": "",
+      "demoLeak": false,
+      "stackTrace": false,
+      "paymentsHonesty": null,
+      "oauthHonesty": null,
+      "emptyOfficial": null
+    },
+    {
+      "route": "/en/business",
+      "status": 200,
+      "location": "",
+      "demoLeak": false,
+      "stackTrace": false,
+      "paymentsHonesty": null,
+      "oauthHonesty": null,
+      "emptyOfficial": null
+    },
+    {
+      "route": "/en/property",
+      "status": 200,
+      "location": "",
+      "demoLeak": false,
+      "stackTrace": false,
+      "paymentsHonesty": null,
+      "oauthHonesty": null,
+      "emptyOfficial": null
+    },
+    {
+      "route": "/en/community",
+      "status": 200,
+      "location": "",
+      "demoLeak": false,
+      "stackTrace": false,
+      "paymentsHonesty": null,
+      "oauthHonesty": null,
+      "emptyOfficial": null
+    },
+    {
+      "route": "/en/auth/sign-in",
+      "status": 200,
+      "location": "",
+      "demoLeak": false,
+      "stackTrace": false,
+      "paymentsHonesty": null,
+      "oauthHonesty": true,
+      "emptyOfficial": null
+    },
+    {
+      "route": "/en/auth/sign-up",
+      "status": 200,
+      "location": "",
+      "demoLeak": false,
+      "stackTrace": false,
+      "paymentsHonesty": null,
+      "oauthHonesty": true,
+      "emptyOfficial": null
+    },
+    {
+      "route": "/en/auth/forgot",
+      "status": 200,
+      "location": "",
+      "demoLeak": false,
+      "stackTrace": false,
+      "paymentsHonesty": null,
+      "oauthHonesty": null,
+      "emptyOfficial": null
+    },
+    {
+      "route": "/en/department",
+      "status": 200,
+      "location": "",
+      "demoLeak": false,
+      "stackTrace": false,
+      "paymentsHonesty": null,
+      "oauthHonesty": null,
+      "emptyOfficial": null
+    },
+    {
+      "route": "/en/admin",
+      "status": 307,
+      "location": "/en/auth/sign-in?next=/admin",
+      "demoLeak": false,
+      "stackTrace": false,
+      "paymentsHonesty": null,
+      "oauthHonesty": null,
+      "emptyOfficial": null
+    },
+    {
+      "route": "/en/account",
+      "status": 307,
+      "location": "/en/auth/sign-in",
+      "demoLeak": false,
+      "stackTrace": false,
+      "paymentsHonesty": null,
+      "oauthHonesty": null,
+      "emptyOfficial": null
+    },
+    {
+      "route": "/robots.txt",
+      "status": 200,
+      "location": "",
+      "demoLeak": false,
+      "stackTrace": false,
+      "paymentsHonesty": null,
+      "oauthHonesty": null,
+      "emptyOfficial": null
+    },
+    {
+      "route": "/sitemap.xml",
+      "status": 200,
+      "location": "",
+      "demoLeak": false,
+      "stackTrace": false,
+      "paymentsHonesty": null,
+      "oauthHonesty": null,
+      "emptyOfficial": null
+    },
+    {
+      "route": "/api/v1/health",
+      "status": 200,
+      "location": "",
+      "demoLeak": false,
+      "stackTrace": false,
+      "paymentsHonesty": null,
+      "oauthHonesty": null,
+      "emptyOfficial": null
+    }
+  ],
+  "searchOk": true,
+  "failures": []
+}

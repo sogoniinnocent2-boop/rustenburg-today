@@ -1,0 +1,96 @@
+{
+  "base": "https://www.rustenburgtoday.co.za",
+  "fetchedLoginPage": 200,
+  "actionIdFound": true,
+  "rows": [
+    {
+      "kind": "guard",
+      "test": "invalid_password",
+      "status": 303,
+      "location": "/en/auth/sign-in?error=Email%20or%20password%20is%20incorrect",
+      "hasSession": false,
+      "result": "PASS"
+    },
+    {
+      "kind": "guard",
+      "test": "unknown_account",
+      "status": 303,
+      "location": "/en/auth/sign-in?error=Email%20or%20password%20is%20incorrect",
+      "hasSession": false,
+      "result": "PASS"
+    },
+    {
+      "kind": "account",
+      "email": "admin@rustenburg.today",
+      "loginStatus": 303,
+      "loginLocation": "/en/department",
+      "hasSession": true,
+      "deskStatus": 200,
+      "deskShowsLogin": false,
+      "deskShowsDesks": true,
+      "hasDisplay": true,
+      "ownDesk": null,
+      "ownStatus": null,
+      "ownOk": true,
+      "foreignSportsStatus": null,
+      "foreignBlocked": true,
+      "result": "PASS"
+    },
+    {
+      "kind": "account",
+      "email": "thato.selokwane@rustenburgtoday.co.za",
+      "loginStatus": 303,
+      "loginLocation": "/en/department",
+      "hasSession": true,
+      "deskStatus": 200,
+      "deskShowsLogin": false,
+      "deskShowsDesks": true,
+      "hasDisplay": true,
+      "ownDesk": "business",
+      "ownStatus": 200,
+      "ownOk": true,
+      "foreignSportsStatus": 404,
+      "foreignBlocked": true,
+      "result": "PASS"
+    },
+    {
+      "kind": "account",
+      "email": "innocent.sogoni@rustenburgtoday.co.za",
+      "loginStatus": 303,
+      "loginLocation": "/en/department",
+      "hasSession": true,
+      "deskStatus": 200,
+      "deskShowsLogin": false,
+      "deskShowsDesks": true,
+      "hasDisplay": true,
+      "ownDesk": "events",
+      "ownStatus": 200,
+      "ownOk": true,
+      "foreignSportsStatus": 404,
+      "foreignBlocked": true,
+      "result": "PASS"
+    },
+    {
+      "kind": "account",
+      "email": "thabo.soke@rustenburgtoday.co.za",
+      "loginStatus": 303,
+      "loginLocation": "/en/department",
+      "hasSession": true,
+      "deskStatus": 200,
+      "deskShowsLogin": false,
+      "deskShowsDesks": true,
+      "hasDisplay": true,
+      "ownDesk": "news",
+      "ownStatus": 200,
+      "ownOk": true,
+      "foreignSportsStatus": 404,
+      "foreignBlocked": true,
+      "result": "PASS"
+    }
+  ],
+  "summary": {
+    "pass": 6,
+    "partial": 0,
+    "fail": 0
+  }
+}

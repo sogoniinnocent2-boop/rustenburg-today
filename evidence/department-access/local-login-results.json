@@ -1,0 +1,392 @@
+{
+  "totals": {
+    "departments": 32,
+    "accountsExist": 3,
+    "missingAccounts": 29,
+    "loginPass": 3,
+    "loginFail": 0,
+    "loginBlocked": 29,
+    "dashboardPass": 3,
+    "dashboardFail": 0,
+    "permissionsPass": 3,
+    "permissionsFail": 0,
+    "overallPass": 3
+  },
+  "authGuards": {
+    "invalidPassword": "PASS",
+    "unknownAccount": "PASS"
+  },
+  "adminChecks": {
+    "login": "PASS",
+    "usersManage": "PASS",
+    "allDesks": "PASS"
+  },
+  "credentialFilesFound": [
+    {
+      "email": "admin@rustenburg.today",
+      "file": "bootstrap-admin.txt"
+    },
+    {
+      "email": "thato.selokwane@rustenburgtoday.co.za",
+      "file": "department-business-thato-selokwane.txt"
+    },
+    {
+      "email": "innocent.sogoni@rustenburgtoday.co.za",
+      "file": "department-events-innocent-sogoni.txt"
+    },
+    {
+      "email": "thabo.soke@rustenburgtoday.co.za",
+      "file": "department-news-thabo-soke.txt"
+    }
+  ],
+  "bugs": [],
+  "table": [
+    {
+      "division": "news",
+      "department": "news",
+      "accountExists": "PASS",
+      "email": "thabo.soke@rustenburgtoday.co.za",
+      "displayName": "Thabo Soke",
+      "roles": [
+        "contributor",
+        "department_editor",
+        "reader",
+        "resident"
+      ],
+      "login": "PASS",
+      "dashboard": "PASS",
+      "permissions": "PASS",
+      "result": "PASS",
+      "sessionCookie": true,
+      "logout": "PASS"
+    },
+    {
+      "division": "community",
+      "department": "community",
+      "accountExists": "FAIL",
+      "login": "BLOCKED",
+      "dashboard": "BLOCKED",
+      "permissions": "BLOCKED",
+      "result": "BLOCKED",
+      "note": "No department account assigned"
+    },
+    {
+      "division": "news",
+      "department": "podcasts",
+      "accountExists": "FAIL",
+      "login": "BLOCKED",
+      "dashboard": "BLOCKED",
+      "permissions": "BLOCKED",
+      "result": "BLOCKED",
+      "note": "No department account assigned"
+    },
+    {
+      "division": "news",
+      "department": "tv",
+      "accountExists": "FAIL",
+      "login": "BLOCKED",
+      "dashboard": "BLOCKED",
+      "permissions": "BLOCKED",
+      "result": "BLOCKED",
+      "note": "No department account assigned"
+    },
+    {
+      "division": "news",
+      "department": "radio",
+      "accountExists": "FAIL",
+      "login": "BLOCKED",
+      "dashboard": "BLOCKED",
+      "permissions": "BLOCKED",
+      "result": "BLOCKED",
+      "note": "No department account assigned"
+    },
+    {
+      "division": "news",
+      "department": "music",
+      "accountExists": "FAIL",
+      "login": "BLOCKED",
+      "dashboard": "BLOCKED",
+      "permissions": "BLOCKED",
+      "result": "BLOCKED",
+      "note": "No department account assigned"
+    },
+    {
+      "division": "talent",
+      "department": "talent",
+      "accountExists": "FAIL",
+      "login": "BLOCKED",
+      "dashboard": "BLOCKED",
+      "permissions": "BLOCKED",
+      "result": "BLOCKED",
+      "note": "No department account assigned"
+    },
+    {
+      "division": "market",
+      "department": "marketplace",
+      "accountExists": "FAIL",
+      "login": "BLOCKED",
+      "dashboard": "BLOCKED",
+      "permissions": "BLOCKED",
+      "result": "BLOCKED",
+      "note": "No department account assigned"
+    },
+    {
+      "division": "jobs",
+      "department": "jobs",
+      "accountExists": "FAIL",
+      "login": "BLOCKED",
+      "dashboard": "BLOCKED",
+      "permissions": "BLOCKED",
+      "result": "BLOCKED",
+      "note": "No department account assigned"
+    },
+    {
+      "division": "learn",
+      "department": "learn",
+      "accountExists": "FAIL",
+      "login": "BLOCKED",
+      "dashboard": "BLOCKED",
+      "permissions": "BLOCKED",
+      "result": "BLOCKED",
+      "note": "No department account assigned"
+    },
+    {
+      "division": "events",
+      "department": "events",
+      "accountExists": "PASS",
+      "email": "innocent.sogoni@rustenburgtoday.co.za",
+      "displayName": "Innocent Sogoni",
+      "roles": [
+        "contributor",
+        "department_editor",
+        "reader",
+        "resident"
+      ],
+      "login": "PASS",
+      "dashboard": "PASS",
+      "permissions": "PASS",
+      "result": "PASS",
+      "sessionCookie": true,
+      "logout": "PASS"
+    },
+    {
+      "division": "business",
+      "department": "business",
+      "accountExists": "PASS",
+      "email": "thato.selokwane@rustenburgtoday.co.za",
+      "displayName": "Thato Selokwane",
+      "roles": [
+        "contributor",
+        "department_editor",
+        "reader",
+        "resident"
+      ],
+      "login": "PASS",
+      "dashboard": "PASS",
+      "permissions": "PASS",
+      "result": "PASS",
+      "sessionCookie": true,
+      "logout": "PASS"
+    },
+    {
+      "division": "business",
+      "department": "advertising",
+      "accountExists": "FAIL",
+      "login": "BLOCKED",
+      "dashboard": "BLOCKED",
+      "permissions": "BLOCKED",
+      "result": "BLOCKED",
+      "note": "No department account assigned"
+    },
+    {
+      "division": "property",
+      "department": "property",
+      "accountExists": "FAIL",
+      "login": "BLOCKED",
+      "dashboard": "BLOCKED",
+      "permissions": "BLOCKED",
+      "result": "BLOCKED",
+      "note": "No department account assigned"
+    },
+    {
+      "division": "life",
+      "department": "food",
+      "accountExists": "FAIL",
+      "login": "BLOCKED",
+      "dashboard": "BLOCKED",
+      "permissions": "BLOCKED",
+      "result": "BLOCKED",
+      "note": "No department account assigned"
+    },
+    {
+      "division": "life",
+      "department": "sports",
+      "accountExists": "FAIL",
+      "login": "BLOCKED",
+      "dashboard": "BLOCKED",
+      "permissions": "BLOCKED",
+      "result": "BLOCKED",
+      "note": "No department account assigned"
+    },
+    {
+      "division": "life",
+      "department": "youth",
+      "accountExists": "FAIL",
+      "login": "BLOCKED",
+      "dashboard": "BLOCKED",
+      "permissions": "BLOCKED",
+      "result": "BLOCKED",
+      "note": "No department account assigned"
+    },
+    {
+      "division": "city",
+      "department": "support",
+      "accountExists": "FAIL",
+      "login": "BLOCKED",
+      "dashboard": "BLOCKED",
+      "permissions": "BLOCKED",
+      "result": "BLOCKED",
+      "note": "No department account assigned"
+    },
+    {
+      "division": "discover",
+      "department": "transport",
+      "accountExists": "FAIL",
+      "login": "BLOCKED",
+      "dashboard": "BLOCKED",
+      "permissions": "BLOCKED",
+      "result": "BLOCKED",
+      "note": "No department account assigned"
+    },
+    {
+      "division": "discover",
+      "department": "tourism",
+      "accountExists": "FAIL",
+      "login": "BLOCKED",
+      "dashboard": "BLOCKED",
+      "permissions": "BLOCKED",
+      "result": "BLOCKED",
+      "note": "No department account assigned"
+    },
+    {
+      "division": "life",
+      "department": "health",
+      "accountExists": "FAIL",
+      "login": "BLOCKED",
+      "dashboard": "BLOCKED",
+      "permissions": "BLOCKED",
+      "result": "BLOCKED",
+      "note": "No department account assigned"
+    },
+    {
+      "division": "city",
+      "department": "voice",
+      "accountExists": "FAIL",
+      "login": "BLOCKED",
+      "dashboard": "BLOCKED",
+      "permissions": "BLOCKED",
+      "result": "BLOCKED",
+      "note": "No department account assigned"
+    },
+    {
+      "division": "business",
+      "department": "deals",
+      "accountExists": "FAIL",
+      "login": "BLOCKED",
+      "dashboard": "BLOCKED",
+      "permissions": "BLOCKED",
+      "result": "BLOCKED",
+      "note": "No department account assigned"
+    },
+    {
+      "division": "events",
+      "department": "competitions",
+      "accountExists": "FAIL",
+      "login": "BLOCKED",
+      "dashboard": "BLOCKED",
+      "permissions": "BLOCKED",
+      "result": "BLOCKED",
+      "note": "No department account assigned"
+    },
+    {
+      "division": "city",
+      "department": "history",
+      "accountExists": "FAIL",
+      "login": "BLOCKED",
+      "dashboard": "BLOCKED",
+      "permissions": "BLOCKED",
+      "result": "BLOCKED",
+      "note": "No department account assigned"
+    },
+    {
+      "division": "discover",
+      "department": "services",
+      "accountExists": "FAIL",
+      "login": "BLOCKED",
+      "dashboard": "BLOCKED",
+      "permissions": "BLOCKED",
+      "result": "BLOCKED",
+      "note": "No department account assigned"
+    },
+    {
+      "division": "life",
+      "department": "agriculture",
+      "accountExists": "FAIL",
+      "login": "BLOCKED",
+      "dashboard": "BLOCKED",
+      "permissions": "BLOCKED",
+      "result": "BLOCKED",
+      "note": "No department account assigned"
+    },
+    {
+      "division": "life",
+      "department": "faith",
+      "accountExists": "FAIL",
+      "login": "BLOCKED",
+      "dashboard": "BLOCKED",
+      "permissions": "BLOCKED",
+      "result": "BLOCKED",
+      "note": "No department account assigned"
+    },
+    {
+      "division": "life",
+      "department": "family",
+      "accountExists": "FAIL",
+      "login": "BLOCKED",
+      "dashboard": "BLOCKED",
+      "permissions": "BLOCKED",
+      "result": "BLOCKED",
+      "note": "No department account assigned"
+    },
+    {
+      "division": "city",
+      "department": "technology",
+      "accountExists": "FAIL",
+      "login": "BLOCKED",
+      "dashboard": "BLOCKED",
+      "permissions": "BLOCKED",
+      "result": "BLOCKED",
+      "note": "No department account assigned"
+    },
+    {
+      "division": "city",
+      "department": "notices",
+      "accountExists": "FAIL",
+      "login": "BLOCKED",
+      "dashboard": "BLOCKED",
+      "permissions": "BLOCKED",
+      "result": "BLOCKED",
+      "note": "No department account assigned"
+    },
+    {
+      "division": "talent",
+      "department": "creators",
+      "accountExists": "FAIL",
+      "login": "BLOCKED",
+      "dashboard": "BLOCKED",
+      "permissions": "BLOCKED",
+      "result": "BLOCKED",
+      "note": "No department account assigned"
+    }
+  ]
+}

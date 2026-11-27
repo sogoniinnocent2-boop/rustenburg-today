@@ -1,0 +1,38 @@
+{
+  "base": "https://www.rustenburgtoday.co.za",
+  "results": [
+    {
+      "email": "admin@rustenburg.today",
+      "file": "bootstrap-admin.txt",
+      "role": "administrator",
+      "login": "PASS",
+      "dashboard": "PASS",
+      "overall": "PASS"
+    },
+    {
+      "email": "thato.selokwane@rustenburgtoday.co.za",
+      "file": "department-business-thato-selokwane.txt",
+      "role": "department_editor",
+      "login": "PASS",
+      "dashboard": "PASS",
+      "overall": "PASS"
+    },
+    {
+      "email": "innocent.sogoni@rustenburgtoday.co.za",
+      "file": "department-events-innocent-sogoni.txt",
+      "role": "department_editor",
+      "login": "PASS",
+      "dashboard": "PASS",
+      "overall": "PASS"
+    },
+    {
+      "email": "thabo.soke@rustenburgtoday.co.za",
+      "file": "department-news-thabo-soke.txt",
+      "role": "department_editor",
+      "login": "PASS",
+      "dashboard": "PASS",
+      "overall": "PASS"
+    }
+  ],
+  "verdict": "PASS"
+}

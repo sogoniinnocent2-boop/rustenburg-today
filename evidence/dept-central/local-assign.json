@@ -1,0 +1,58 @@
+{
+  "dataDir": "C:\\Users\\cash\\OneDrive\\Music\\Rustenburg Today\\data",
+  "deskCount": 32,
+  "desks": [
+    "news",
+    "community",
+    "podcasts",
+    "tv",
+    "radio",
+    "music",
+    "talent",
+    "marketplace",
+    "jobs",
+    "learn",
+    "events",
+    "business",
+    "advertising",
+    "property",
+    "food",
+    "sports",
+    "youth",
+    "support",
+    "transport",
+    "tourism",
+    "health",
+    "voice",
+    "deals",
+    "competitions",
+    "history",
+    "services",
+    "agriculture",
+    "faith",
+    "family",
+    "technology",
+    "notices",
+    "creators"
+  ],
+  "results": [
+    {
+      "email": "thabo.soke@rustenburgtoday.co.za",
+      "newlyAssigned": 31,
+      "totalAssigned": 32,
+      "coversAll": true
+    },
+    {
+      "email": "innocent.sogoni@rustenburgtoday.co.za",
+      "newlyAssigned": 31,
+      "totalAssigned": 32,
+      "coversAll": true
+    },
+    {
+      "email": "thato.selokwane@rustenburgtoday.co.za",
+      "newlyAssigned": 31,
+      "totalAssigned": 32,
+      "coversAll": true
+    }
+  ]
+}

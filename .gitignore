@@ -1,7 +1,10 @@
 node_modules
 .next
 .next-prod
+.next-build
 data
+undefined
+.idea
 .env
 .env.local
 .env.*.local

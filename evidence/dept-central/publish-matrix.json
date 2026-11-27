@@ -1,0 +1,29 @@
+{
+  "combinations": 96,
+  "pass": 96,
+  "fail": 0,
+  "publishSamples": [
+    {
+      "email": "thabo.soke@rustenburgtoday.co.za",
+      "section": "sports",
+      "id": "9f17e891-9bc3-48a0-97f9-10bea49aefa9",
+      "listedOwn": true,
+      "leakedToNews": false
+    },
+    {
+      "email": "innocent.sogoni@rustenburgtoday.co.za",
+      "section": "sports",
+      "id": "0a712e36-de6c-4fe1-b996-aad2c6a3c658",
+      "listedOwn": true,
+      "leakedToNews": false
+    },
+    {
+      "email": "thato.selokwane@rustenburgtoday.co.za",
+      "section": "sports",
+      "id": "6a1a92d7-3392-4503-89a8-45d2bf268888",
+      "listedOwn": true,
+      "leakedToNews": false
+    }
+  ],
+  "outsiderBlocked": "PASS"
+}

@@ -1,0 +1,40 @@
+{
+  "results": [
+    {
+      "email": "thato.selokwane@rustenburgtoday.co.za",
+      "own": "business",
+      "foreign": "news",
+      "canOwn": true,
+      "canForeign": false,
+      "publishOwn": "PASS",
+      "publishForeignBlocked": "PASS",
+      "listedOwn": "PASS",
+      "foreignError": "You are not assigned to this department",
+      "result": "PASS"
+    },
+    {
+      "email": "innocent.sogoni@rustenburgtoday.co.za",
+      "own": "events",
+      "foreign": "news",
+      "canOwn": true,
+      "canForeign": false,
+      "publishOwn": "PASS",
+      "publishForeignBlocked": "PASS",
+      "listedOwn": "PASS",
+      "foreignError": "You are not assigned to this department",
+      "result": "PASS"
+    },
+    {
+      "email": "thabo.soke@rustenburgtoday.co.za",
+      "own": "news",
+      "foreign": "events",
+      "canOwn": true,
+      "canForeign": false,
+      "publishOwn": "PASS",
+      "publishForeignBlocked": "PASS",
+      "listedOwn": "PASS",
+      "foreignError": "You are not assigned to this department",
+      "result": "PASS"
+    }
+  ]
+}

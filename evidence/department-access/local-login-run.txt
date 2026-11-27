@@ -1,0 +1,121 @@
+﻿{
+  "totals": {
+    "departments": 32,
+    "accountsExist": 3,
+    "missingAccounts": 29,
+    "loginPass": 3,
+    "loginFail": 0,
+    "loginBlocked": 29,
+    "dashboardPass": 3,
+    "dashboardFail": 0,
+    "permissionsPass": 3,
+    "permissionsFail": 0,
+    "overallPass": 3
+  },
+  "authGuards": {
+    "invalidPassword": "PASS",
+    "unknownAccount": "PASS"
+  },
+  "adminChecks": {
+    "login": "PASS",
+    "usersManage": "PASS",
+    "allDesks": "PASS"
+  },
+  "bugs": [],
+  "testedEmails": [
+    "admin@rustenburg.today",
+    "thato.selokwane@rustenburgtoday.co.za",
+    "innocent.sogoni@rustenburgtoday.co.za",
+    "thabo.soke@rustenburgtoday.co.za"
+  ],
+  "passRows": [
+    {
+      "division": "news",
+      "department": "news",
+      "accountExists": "PASS",
+      "email": "thabo.soke@rustenburgtoday.co.za",
+      "displayName": "Thabo Soke",
+      "roles": [
+        "contributor",
+        "department_editor",
+        "reader",
+        "resident"
+      ],
+      "login": "PASS",
+      "dashboard": "PASS",
+      "permissions": "PASS",
+      "result": "PASS",
+      "sessionCookie": true,
+      "logout": "PASS"
+    },
+    {
+      "division": "events",
+      "department": "events",
+      "accountExists": "PASS",
+      "email": "innocent.sogoni@rustenburgtoday.co.za",
+      "displayName": "Innocent Sogoni",
+      "roles": [
+        "contributor",
+        "department_editor",
+        "reader",
+        "resident"
+      ],
+      "login": "PASS",
+      "dashboard": "PASS",
+      "permissions": "PASS",
+      "result": "PASS",
+      "sessionCookie": true,
+      "logout": "PASS"
+    },
+    {
+      "division": "business",
+      "department": "business",
+      "accountExists": "PASS",
+      "email": "thato.selokwane@rustenburgtoday.co.za",
+      "displayName": "Thato Selokwane",
+      "roles": [
+        "contributor",
+        "department_editor",
+        "reader",
+        "resident"
+      ],
+      "login": "PASS",
+      "dashboard": "PASS",
+      "permissions": "PASS",
+      "result": "PASS",
+      "sessionCookie": true,
+      "logout": "PASS"
+    }
+  ],
+  "blockedMissing": [
+    "community",
+    "podcasts",
+    "tv",
+    "radio",
+    "music",
+    "talent",
+    "marketplace",
+    "jobs",
+    "learn",
+    "advertising",
+    "property",
+    "food",
+    "sports",
+    "youth",
+    "support",
+    "transport",
+    "tourism",
+    "health",
+    "voice",
+    "deals",
+    "competitions",
+    "history",
+    "services",
+    "agriculture",
+    "faith",
+    "family",
+    "technology",
+    "notices",
+    "creators"
+  ]
+}

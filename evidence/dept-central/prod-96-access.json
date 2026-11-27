@@ -1,0 +1,42 @@
+{
+  "base": "https://www.rustenburgtoday.co.za",
+  "deskCount": 32,
+  "accountCount": 3,
+  "combinations": 96,
+  "pass": 96,
+  "fail": 0,
+  "outsiderBlocked": "PASS",
+  "accounts": [
+    {
+      "email": "thabo.soke@rustenburgtoday.co.za",
+      "login": "PASS",
+      "hubOk": true,
+      "departmentsAssigned": 32,
+      "departmentsAccessible": 32,
+      "publishing": "NOT TESTED",
+      "permissionSecurity": "PASS",
+      "sampleSwitcher": true
+    },
+    {
+      "email": "innocent.sogoni@rustenburgtoday.co.za",
+      "login": "PASS",
+      "hubOk": true,
+      "departmentsAssigned": 32,
+      "departmentsAccessible": 32,
+      "publishing": "NOT TESTED",
+      "permissionSecurity": "PASS",
+      "sampleSwitcher": true
+    },
+    {
+      "email": "thato.selokwane@rustenburgtoday.co.za",
+      "login": "PASS",
+      "hubOk": true,
+      "departmentsAssigned": 32,
+      "departmentsAccessible": 32,
+      "publishing": "NOT TESTED",
+      "permissionSecurity": "PASS",
+      "sampleSwitcher": true
+    }
+  ],
+  "failures": []
+}

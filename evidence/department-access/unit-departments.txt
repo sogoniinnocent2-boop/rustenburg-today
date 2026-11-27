@@ -1,0 +1,14 @@
+﻿✔ assigned health desk publishes live on the health page (21.963ms)
+✔ unassigned account cannot publish a health record (19.6516ms)
+✔ health desk cannot publish news; news desk can with picture (100.0565ms)
+✔ jobs desk publish lands on the jobs list (112.1072ms)
+✔ readers can react to department stories like on Facebook (91.9081ms)
+✔ one staff member can hold several departments and download a story report (129.8704ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4229.7693
